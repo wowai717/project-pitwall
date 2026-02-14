@@ -1,0 +1,45 @@
+name: CI Pipeline (Build Test)
+
+# 언제 실행할 것인가? (main 브랜치에 푸시되거나 PR이 들어오면)
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # 1. 백엔드 빌드 테스트
+  backend-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install Backend Dependencies
+      run: |
+        cd backend
+        npm ci
+    - name: Build Backend
+      run: |
+        cd backend
+        npm run build
+
+  # 2. 프론트엔드 빌드 테스트
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install Frontend Dependencies
+      run: |
+        cd frontend
+        npm ci
+    - name: Build Frontend
+      run: |
+        cd frontend
+        npm run build
