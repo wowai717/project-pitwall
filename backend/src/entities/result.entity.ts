@@ -23,6 +23,9 @@ export class Result {
   @Column()
   status: string; // 상태 ('Finished', 'Collision' 등)
 
+  @Column({ default: false })
+  isSprint: boolean;
+
   // 관계 설정 (Foreign Keys)
 
   @ManyToOne(() => Race, (race) => race.results)
@@ -35,5 +38,5 @@ export class Result {
 
   @ManyToOne(() => Constructor, (constructor) => constructor.results)
   @JoinColumn({ name: 'constructorId' })
-  f1constructor: Constructor;
+  f1Constructor: Constructor;
 }
