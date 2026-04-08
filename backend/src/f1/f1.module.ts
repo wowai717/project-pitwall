@@ -4,9 +4,9 @@ import { F1Controller } from './f1.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Driver } from '../entities/driver.entity';
 import { HttpModule } from '@nestjs/axios';
-import { Constructor } from 'src/entities/constructor.entity';
-import { Race } from 'src/entities/race.entity';
-import { Result } from 'src/entities/result.entity';
+import { Constructor } from '../entities/constructor.entity';
+import { Race } from '../entities/race.entity';
+import { Result } from '../entities/result.entity';
 
 
 @Module({

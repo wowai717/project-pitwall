@@ -18,10 +18,10 @@ export class Driver {
   @Column()
   familyName: string; // 예: 'Verstappen'
 
-  @Column()
+  @Column({ default: '1900-01-01' })
   dateOfBirth: string; // 예: '1997-09-30'
 
-  @Column()
+  @Column({ default: 'Unknown' })
   nationality: string; // 예: 'Dutch'
 
   // 관계 설정: 한 명의 드라이버는 여러 경기 결과를 가짐

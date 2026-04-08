@@ -1,4 +1,4 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { F1Service } from './f1.service';
 
 @Controller('f1')
@@ -7,13 +7,8 @@ export class F1Controller {
 
   @Get('seed/drivers')
   async seedDrivers() {
-    return await this.f1Service.seedDrivers();
+    return this.f1Service.seedDrivers();
   }
-
-  @Get('drivers')
-  async getDrivers() {
-    return await this.f1Service.getAllDrivers();
-  } 
 
   @Get('seed/constructors')
   async seedConstructors() {
@@ -31,7 +26,13 @@ export class F1Controller {
   }
 
   @Get('standings')
-  async getStandings() {
-    return this.f1Service.getDriverStandings();
+  async getStandings(@Query('year') year?: string) {
+    const targetYear = Number(year) || 2023;
+    return this.f1Service.getDriverStandings(targetYear);
+  }
+
+  @Get('seed/all')
+  async seedAll() {
+    return this.f1Service.seedAll();
   }
 }

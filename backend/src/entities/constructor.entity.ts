@@ -9,7 +9,7 @@ export class Constructor {
   @Column()
   name: string; // 예: 'Red Bull Racing'
 
-  @Column()
+  @Column({ default: 'Unknown' })
   nationality: string; // 예: 'Austrian'
 
   @Column()
@@ -19,6 +19,6 @@ export class Constructor {
   color: string;
 
   // 관계 설정: 한 팀은 여러 경기 결과를 가짐
-  @OneToMany(() => Result, (result) => result.constructor)
+  @OneToMany(() => Result, (result) => result.f1Constructor)
   results: Result[];
 }
