@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { HttpService } from '@nestjs/axios';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,6 +17,7 @@ export class F1Service {
   private readonly PAGE_SIZE = 100;
 
   constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly httpService: HttpService,
     @InjectRepository(Driver) private readonly driverRepository: Repository<Driver>,
     @InjectRepository(Constructor) private readonly constructorRepository: Repository<Constructor>,
@@ -181,25 +184,108 @@ export class F1Service {
   }
 
   async getDriverStandings(year: number = 2023) {
-    const standings = await this.resultRepository
-      .createQueryBuilder('result')
-      .innerJoin('result.race', 'race')
-      .innerJoin('result.driver', 'driver')
-      .select([
-        'driver.givenName AS firstName',
-        'driver.familyName AS lastName',
-        'driver.code AS code',
-        'driver.nationality AS nationality',
-      ])
-      .addSelect('SUM(result.points)', 'totalPoints')
-      .where('race.season = :year', { year })
-      .groupBy('driver.driverId, driver.givenName, driver.familyName, driver.code, driver.nationality')
-      .orderBy('totalPoints', 'DESC')
-      .getRawMany();
+    const cacheKey = `driver_standings_${year}`;
+    const cachedData = await this.cacheManager.get(cacheKey);
+    if (cachedData) {
+      this.logger.log(`⚡ [REDIS CACHE HIT] ${year}년도 드라이버 랭킹`);
+      return cachedData;
+    }
 
-    return standings.map((standing) => ({
-      ...standing,
-      totalPoints: Number(standing.totalPoints),
-    }));
+    this.logger.log(`🏎️ [API FETCH] ${year}년도 드라이버 랭킹 조회 중...`);
+    const url = `https://api.jolpi.ca/ergast/f1/${year}/driverstandings.json`;
+
+    try {
+      const { data } = await firstValueFrom(this.httpService.get(url));
+      const standingsList = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || [];
+
+      const result = standingsList.map((standing: any) => ({
+        id: standing.Driver.driverId,
+        firstName: standing.Driver.givenName,
+        lastName: standing.Driver.familyName,
+        code: standing.Driver.code || standing.Driver.familyName.substring(0, 3).toUpperCase(),
+        nationality: standing.Driver.nationality,
+        totalPoints: Number(standing.points),
+        wins: Number(standing.wins),
+      }));
+
+      await this.cacheManager.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      this.logger.error(`${year}년 드라이버 랭킹 조회 실패`, error);
+      return [];
+    }
+  }
+
+  async getDriverResults(year: number, driverId: string) {
+    const cacheKey = `driver_results_${year}_${driverId}`;
+    const cachedData = await this.cacheManager.get(cacheKey);
+    if (cachedData) {
+      this.logger.log(`⚡ [REDIS CACHE HIT] ${year}년도 ${driverId} 상세 성적`);
+      return cachedData;
+    }
+
+    this.logger.log(`📊 [API FETCH] ${year}년도 ${driverId} 상세 성적 조회 중...`);
+
+    try {
+      const url = `https://api.jolpi.ca/ergast/f1/${year}/drivers/${driverId}/results.json`;
+      const { data } = await firstValueFrom(this.httpService.get(url));
+      const races = data?.MRData?.RaceTable?.Races || [];
+
+      const result = races.flatMap((race: any) =>
+        (race.Results || []).map((result: any) => ({
+          race: {
+            round: Number(race.round),
+            raceName: race.raceName,
+          },
+          driver: {
+            ...result.Driver,
+            permanentNumber: result.number, // 실제 레이스 달린 차량 번호 우선 적용
+          },
+          constructor: result.Constructor,
+          position: Number(result.position),
+          points: Number(result.points),
+          grid: Number(result.grid),
+          laps: Number(result.laps),
+          status: result.status,
+        })),
+      );
+
+      await this.cacheManager.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      this.logger.error(`${year}년 ${driverId} 상세 성적 조회 실패`, error);
+      return [];
+    }
+  }
+
+  async getConstructorStandings(year: number = 2023) {
+    const cacheKey = `constructor_standings_${year}`;
+    const cachedData = await this.cacheManager.get(cacheKey);
+    if (cachedData) {
+      this.logger.log(`⚡ [REDIS CACHE HIT] ${year}년도 공식 팀 랭킹`);
+      return cachedData;
+    }
+
+    this.logger.log(`🛠️ [API FETCH] ${year}년도 공식 팀 랭킹 조회 중...`);
+    const url = `https://api.jolpi.ca/ergast/f1/${year}/constructorStandings.json`;
+
+    try {
+      const { data } = await firstValueFrom(this.httpService.get(url));
+      const standingsList = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings || [];
+
+      const result = standingsList.map((standing: any) => ({
+        name: standing.Constructor.name,
+        nationality: standing.Constructor.nationality,
+        position: standing.position,
+        totalPoints: standing.points,
+        wins: standing.wins,
+      }));
+
+      await this.cacheManager.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      this.logger.error(`${year}년 팀 랭킹 조회 실패`, error);
+      return [];
+    }
   }
 }
