@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { F1Service } from './f1.service';
 
 @Controller('f1')
@@ -34,5 +34,22 @@ export class F1Controller {
   @Get('seed/all')
   async seedAll() {
     return this.f1Service.seedAll();
+  }
+
+  @Get('constructors')
+  async getConstructors(@Query('year') year?: string) {
+    const targetYear = year ? parseInt(year, 10) : 2023;
+    return this.f1Service.getConstructorStandings(targetYear);
+  }
+
+  @Get('drivers/:driverId/results')
+  async getDriverResults(@Param('driverId') driverId: string, @Query('year') year?: string) {
+    const targetYear = year ? parseInt(year, 10) : 2023;
+    return this.f1Service.getDriverResults(targetYear, driverId);
+  }
+
+  @Get('results')
+  async getResults(@Query('year') year: string, @Query('driverId') driverId: string) {
+    return this.f1Service.getDriverResults(parseInt(year, 10), driverId);
   }
 }
