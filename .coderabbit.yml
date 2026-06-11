@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "ko-KR"
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  auto_apply_labels: false
+  suggested_reviewers: true
+  auto_assign_reviewers: false
+  poem: false
+  in_progress_fortune: false
+  enable_prompt_for_ai_agents: true
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/coverage/**"
+    - "!**/package-lock.json"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.jpeg"
+    - "!**/*.gif"
+    - "!**/*.svg"
+    - "!**/*.webp"
+    - "!**/.env*"
+
+  path_instructions:
+    - path: "frontend/**/*.tsx"
+      instructions: |
+        Next.js App Router와 TypeScript 기준으로 리뷰하세요.
+        클라이언트/서버 컴포넌트 구분, hydration 이슈, 데이터 fetching 방식,
+        타입 안정성, 가독성, 불필요한 상태 관리 여부를 중점적으로 봐주세요.
+
+    - path: "frontend/**/*.css"
+      instructions: |
+        Tailwind와 전역 스타일 기준으로 리뷰하세요.
+        가독성, 색 대비, 접근성, 과도한 커스텀 CSS 여부를 중점적으로 봐주세요.
+
+    - path: "backend/src/**/*.ts"
+      instructions: |
+        NestJS 기준으로 리뷰하세요.
+        예외 처리, 타입 안정성, 인증/인가, 환경변수 사용, 민감정보 하드코딩,
+        ORM 설정 안전성(synchronize 포함), API 응답 일관성을 중점적으로 봐주세요.
+
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        GitHub Actions 최소 권한, 캐시 설정, 브랜치 트리거, 외부 액션 사용,
+        비밀정보 노출 가능성 등 CI 보안 관점에서 리뷰하세요.
+
+    - path: "**/*.{json,yaml,yml}"
+      instructions: |
+        설정 파일에 민감한 정보가 하드코딩되지 않았는지,
+        운영 환경에서 위험한 기본값이 없는지 확인해주세요.
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
+    drafts: false
+    base_branches:
+      - main
+      - develop
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "draft"
+
+chat:
+  auto_reply: true
+  art: false
