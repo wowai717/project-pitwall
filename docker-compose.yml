@@ -20,6 +20,12 @@ services:
       - "${BACKEND_PORT}:3000"
     env_file:
       - ./backend/.env
+    environment:
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     volumes:
       - ./backend/src:/app/src
     depends_on:

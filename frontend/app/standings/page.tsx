@@ -16,6 +16,7 @@ export default async function StandingsPage({
 }: {
   searchParams: Promise<{ year?: string; type?: string }>;
 }) {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   const resolvedParams = await searchParams;
   const currentYear = resolvedParams.year || '2023';
   const currentType = resolvedParams.type || 'driver';
@@ -25,7 +26,7 @@ export default async function StandingsPage({
   
   try {
     const endpoint = currentType === 'driver' ? 'standings' : 'constructors';
-    const res = await fetch(`http://backend:3000/f1/${endpoint}?year=${currentYear}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE_URL}/f1/${endpoint}?year=${currentYear}`, { cache: 'no-store' });
     if (res.ok) standings = await res.json();
   } catch (error) {
     console.error('데이터 가져오기 실패:', error);
