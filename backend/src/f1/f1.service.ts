@@ -236,6 +236,7 @@ export class F1Service {
           race: {
             round: Number(race.round),
             raceName: race.raceName,
+            date: race.date,
           },
           driver: {
             ...result.Driver,
