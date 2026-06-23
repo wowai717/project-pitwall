@@ -16,7 +16,7 @@ export default async function StandingsPage({
 }: {
   searchParams: Promise<{ year?: string; type?: string }>;
 }) {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_BASE_URL = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   const resolvedParams = await searchParams;
   const currentYear = resolvedParams.year || '2023';
   const currentType = resolvedParams.type || 'driver';

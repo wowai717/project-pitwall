@@ -25,7 +25,7 @@ export default async function DriverDashboardPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ year?: string; round?: string }>;
 }) {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_BASE_URL = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
 
