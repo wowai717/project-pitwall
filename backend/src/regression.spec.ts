@@ -76,6 +76,23 @@ test('half points survive the fallback response', async () => {
   ).toBe(12.5);
 });
 
+test('fallback results retain classified retirement reasons and normalize completed finishes', async () => {
+  const service = f1();
+  for (const [driverId, status] of [
+    ['kvyat', 'Suspension'],
+    ['albon', 'Electronics'],
+    ['bottas', 'Finished'],
+  ]) {
+    const results = (await service.getDriverResults(2020, driverId)) as Array<{
+      race: { round: number };
+      status: string;
+    }>;
+    expect(results.find((result) => result.race.round === 1)?.status).toBe(
+      status,
+    );
+  }
+});
+
 test('unsupported seasons and malformed IDs are rejected before upstream calls', async () => {
   const controller = new F1Controller(f1());
   await expect(controller.getStandings('2023oops')).rejects.toBeInstanceOf(
