@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  CreateDateColumn,
+} from 'typeorm';
 import { Post } from './post.entity';
 import { Comment } from './comment.entity';
 
@@ -10,7 +16,7 @@ export class User {
   @Column({ unique: true }) // 닉네임은 중복 금지!
   username: string;
 
-  @Column()
+  @Column({ select: false })
   passwordHash: string; // 나중에 암호화된 비밀번호가 들어갈 자리
 
   @CreateDateColumn()

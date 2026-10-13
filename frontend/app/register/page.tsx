@@ -16,9 +16,14 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const form = new FormData(e.currentTarget as HTMLFormElement);
+    const submittedPassword = String(form.get('password') ?? '');
 
-    if (password !== confirmPassword) {
+    if (submittedPassword !== form.get('confirmPassword')) {
       return setError('비밀번호가 일치하지 않습니다.');
+    }
+    if (new TextEncoder().encode(submittedPassword).length > 72) {
+      return setError('비밀번호는 UTF-8 기준 72바이트 이하로 입력해주세요.');
     }
 
     try {
@@ -26,7 +31,7 @@ export default function RegisterPage() {
       const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: form.get('username'), password: submittedPassword }),
       });
 
       const contentType = res.headers.get('content-type') || '';
@@ -38,8 +43,8 @@ export default function RegisterPage() {
 
       alert('접근 권한이 생성되었습니다. 로그인해 주세요.');
       router.push('/login');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '회원가입에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +63,7 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="mb-6 p-3 bg-red-900/20 border border-red-900/50 rounded flex items-center gap-2 text-red-500 font-mono text-xs">
+          <div role="alert" className="mb-6 p-3 bg-red-900/20 border border-red-900/50 rounded flex items-center gap-2 text-red-300 font-mono text-xs">
             <span className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></span>
             {error}
           </div>
@@ -66,29 +71,31 @@ export default function RegisterPage() {
 
         <form onSubmit={handleRegister} className="flex flex-col gap-5">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono text-neutral-500 tracking-widest">CALLSIGN (USERNAME)</label>
+            <label htmlFor="username" className="text-sm text-neutral-300">아이디</label>
             <input 
-              type="text" required
+              id="username" name="username" autoComplete="username" type="text" required minLength={3} maxLength={32} pattern="[a-zA-Z0-9_]{3,32}" aria-describedby="username-rules"
               value={username} onChange={(e) => setUsername(e.target.value)}
               className="bg-[#111] border border-[#333] text-white p-3 rounded font-mono text-sm focus:outline-none focus:border-red-600 focus:bg-red-600/5 transition-colors"
               placeholder="Enter your callsign..."
             />
+            <p id="username-rules" className="text-xs text-neutral-400">영문, 숫자, 밑줄 3~32자</p>
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono text-neutral-500 tracking-widest">ENCRYPTION KEY (PASSWORD)</label>
+            <label htmlFor="password" className="text-sm text-neutral-300">비밀번호</label>
             <input 
-              type="password" required
+              id="password" name="password" autoComplete="new-password" type="password" required minLength={12} maxLength={72} aria-describedby="password-rules"
               value={password} onChange={(e) => setPassword(e.target.value)}
               className="bg-[#111] border border-[#333] text-white p-3 rounded font-mono text-sm focus:outline-none focus:border-red-600 focus:bg-red-600/5 transition-colors"
               placeholder="••••••••"
             />
+            <p id="password-rules" className="text-xs text-neutral-400">12자 이상, 최대 72바이트 (한글은 보통 글자당 3바이트)</p>
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono text-neutral-500 tracking-widest">VERIFY KEY</label>
+            <label htmlFor="confirmPassword" className="text-sm text-neutral-300">비밀번호 확인</label>
             <input 
-              type="password" required
+              id="confirmPassword" name="confirmPassword" autoComplete="new-password" type="password" required
               value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
               className="bg-[#111] border border-[#333] text-white p-3 rounded font-mono text-sm focus:outline-none focus:border-red-600 focus:bg-red-600/5 transition-colors"
               placeholder="••••••••"
@@ -99,7 +106,7 @@ export default function RegisterPage() {
             type="submit" disabled={loading}
             className="mt-4 w-full bg-white text-black font-black italic tracking-widest py-3 rounded hover:bg-red-600 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'GENERATING CREDENTIALS...' : 'AUTHORIZE REGISTRATION'}
+            {loading ? '가입 중...' : '회원가입'}
           </button>
         </form>
 
