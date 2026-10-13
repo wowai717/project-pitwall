@@ -753,21 +753,12 @@ export default function TelemetryChart({ year, round, raceName, raceDate, driver
   const [weatherData, setWeatherData] = useState<OpenF1WeatherPoint[]>([]);
   const [strategyDataStatus, setStrategyDataStatus] = useState<'idle' | 'available' | 'unavailable'>('idle');
   const [heatmapLayer, setHeatmapLayer] = useState<HeatmapLayer>('all');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'historical' | 'unavailable' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'historical' | 'unavailable' | 'error'>(year < 2023 ? 'historical' : 'idle');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setCarData([]);
-    setLapData([]);
-    setLocationData([]);
-    setTyreStints([]);
-    setWeatherData([]);
-    setStrategyDataStatus('idle');
-    setHeatmapLayer('all');
-    setStatus(year < 2023 ? 'historical' : 'idle');
-    setError('');
     return () => pendingRequest.current?.abort();
-  }, [driverNumber, raceDate, raceName, round, year]);
+  }, []);
 
   const licensedTrack = useMemo(() => {
     const trackHint = getCircuitTrackHint(raceName);
