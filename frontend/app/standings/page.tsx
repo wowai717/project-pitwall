@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
 interface StandingData {
   id?: string;
@@ -21,15 +22,19 @@ export default async function StandingsPage({
   const currentYear = resolvedParams.year || '2023';
   const currentType = resolvedParams.type || 'driver';
   const years = ['2020', '2021', '2022', '2023', '2024', '2025'];
+  if (!years.includes(currentYear) || !['driver', 'constructor'].includes(currentType)) notFound();
 
   let standings: StandingData[] = [];
+  let failed = false;
   
   try {
     const endpoint = currentType === 'driver' ? 'standings' : 'constructors';
-    const res = await fetch(`${API_BASE_URL}/f1/${endpoint}?year=${currentYear}`, { cache: 'no-store' });
-    if (res.ok) standings = await res.json();
+    const res = await fetch(`${API_BASE_URL}/f1/${endpoint}?year=${currentYear}`, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
+    if (!res.ok) throw new Error('Standings request failed');
+    standings = await res.json();
   } catch (error) {
     console.error('데이터 가져오기 실패:', error);
+    failed = true;
   }
 
   return (
@@ -57,7 +62,7 @@ export default async function StandingsPage({
         </header>
 
         {/* 🎛️ 컨트롤 패널: 투명한 글래스 대시보드 느낌 */}
-        <div className="sticky top-4 z-40 flex flex-col md:flex-row gap-4 justify-between items-center bg-black/40 backdrop-blur-xl p-2.5 rounded-xl border border-white/5 mb-12 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]">
+        <div className="flex flex-col lg:flex-row gap-4 justify-between items-center border-b border-neutral-800 pb-5 mb-6">
           <div className="flex bg-neutral-900/80 p-1 rounded-lg w-full md:w-auto border border-neutral-800">
             <Link href={`/standings?year=${currentYear}&type=driver`} className={`flex-1 md:w-32 text-center py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all duration-300 ${currentType === 'driver' ? 'bg-white text-black shadow-sm' : 'text-neutral-500 hover:text-white'}`}>Drivers</Link>
             <Link href={`/standings?year=${currentYear}&type=constructor`} className={`flex-1 md:w-32 text-center py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all duration-300 ${currentType === 'constructor' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]' : 'text-neutral-500 hover:text-white'}`}>Teams</Link>
@@ -72,6 +77,7 @@ export default async function StandingsPage({
 
         {/* 🏎️ 랭킹 리스트: 주행 궤적(레이싱 라인)을 모티브로 한 호버 이펙트 */}
         <div className="grid gap-3">
+          {standings.length === 0 && <div role={failed ? 'alert' : 'status'} className="py-10 text-center text-neutral-300"><p>{failed ? '순위를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' : '이 시즌의 순위 기록이 없습니다.'}</p>{failed && <Link className="mt-4 inline-block text-cyan-300 underline" href={`/standings?year=${currentYear}&type=${currentType}`}>다시 시도</Link>}</div>}
           {standings.map((item, index) => {
             // 👇 [핵심 변경 포인트!] 모달 대신 새로운 상세 페이지 라우팅으로 연결
             const linkHref = currentType === 'driver' 
@@ -79,19 +85,20 @@ export default async function StandingsPage({
               : '#';
             
             return (
-              <Link href={linkHref} key={index} className="group flex items-center justify-between bg-gradient-to-r from-neutral-900/60 to-black/40 hover:from-neutral-800/80 hover:to-neutral-900/60 p-4 md:p-5 rounded-lg border border-neutral-800/50 hover:border-neutral-600 transition-all duration-500 cursor-pointer overflow-hidden relative">
+              <div key={index} className="group flex items-center justify-between gap-3 bg-neutral-900/60 p-3 md:p-5 rounded-lg border border-neutral-800/50 relative hover:border-neutral-600">
+                {currentType === 'driver' && <Link href={linkHref} aria-label={`${item.firstName} ${item.lastName} 경기 기록`} className="absolute inset-0 z-20 rounded-lg" />}
                 {/* 왼쪽 레이싱 라인 (RPM 게이지 오르듯 차오르는 효과) */}
                 <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom"></div>
                 
-                <div className="flex items-center gap-6 md:gap-8 z-10 pl-2">
-                  <span className="text-4xl font-black w-12 text-left text-neutral-800 group-hover:text-white transition-colors duration-500 italic font-mono">{index + 1}</span>
-                  <div>
+                <div className="flex min-w-0 items-center gap-3 md:gap-6 z-10">
+                  <span className="text-2xl font-black w-8 shrink-0 text-left text-neutral-400 italic font-mono">{index + 1}</span>
+                  <div className="min-w-0">
                     {currentType === 'driver' ? (
                       <>
                         <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white group-hover:translate-x-2 transition-transform duration-300 italic">
                           {item.firstName} <span className="text-neutral-400 group-hover:text-white transition-colors duration-300">{item.lastName?.toUpperCase()}</span>
                         </h2>
-                        <div className="flex items-center gap-3 mt-1.5 opacity-60 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-2">
+                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           <span className="text-[10px] font-mono bg-neutral-800 border border-neutral-700 px-2 py-0.5 rounded-sm text-white tracking-widest">{item.code}</span>
                           <span className="text-xs text-neutral-400 font-medium tracking-wide uppercase">{item.nationality}</span>
                         </div>
@@ -101,11 +108,11 @@ export default async function StandingsPage({
                     )}
                   </div>
                 </div>
-                <div className="text-right z-10">
+                <div className="shrink-0 text-right z-10">
                   <div className="text-3xl md:text-4xl font-black text-white tracking-tighter font-mono group-hover:text-red-500 transition-colors duration-300">{item.totalPoints || 0}</div>
                   <div className="text-[10px] text-neutral-500 font-mono tracking-[0.2em] mt-0.5">PTS</div>
                 </div>
-              </Link>
+              </div>
             )
           })}
         </div>

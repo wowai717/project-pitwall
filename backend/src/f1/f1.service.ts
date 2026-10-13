@@ -1,4 +1,9 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Inject,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { HttpService } from '@nestjs/axios';
@@ -9,6 +14,138 @@ import { Constructor } from '../entities/constructor.entity';
 import { Race } from '../entities/race.entity';
 import { Result } from '../entities/result.entity';
 import { firstValueFrom } from 'rxjs';
+import { join } from 'path';
+import { readFileSync } from 'fs';
+
+const f1dbFallback = JSON.parse(
+  readFileSync(join(__dirname, 'data/f1db-2020-2025.json'), 'utf8'),
+) as F1DbFallback;
+
+interface ApiDriver {
+  driverId: string;
+  givenName: string;
+  familyName: string;
+  code?: string;
+  permanentNumber?: string;
+  dateOfBirth?: string;
+  nationality: string;
+}
+interface ApiConstructor {
+  constructorId: string;
+  name: string;
+  nationality: string;
+  url: string;
+}
+interface ApiResult {
+  Driver: ApiDriver;
+  Constructor: ApiConstructor;
+  number: string;
+  position: string;
+  points: string;
+  grid: string;
+  laps: string;
+  status: string;
+}
+interface ApiRace {
+  season: string;
+  round: string;
+  raceName: string;
+  date: string;
+  time?: string;
+  Circuit: { circuitId: string };
+  Results?: ApiResult[];
+  SprintResults?: ApiResult[];
+}
+interface ApiResponse {
+  MRData?: {
+    total?: string;
+    limit?: string;
+    DriverTable?: { Drivers?: ApiDriver[] };
+    ConstructorTable?: { Constructors?: ApiConstructor[] };
+    RaceTable?: { Races?: ApiRace[] };
+    StandingsTable?: {
+      StandingsLists?: Array<{
+        DriverStandings?: Array<{
+          Driver: ApiDriver;
+          points: string;
+          wins: string;
+        }>;
+        ConstructorStandings?: Array<{
+          Constructor: ApiConstructor;
+          position: string;
+          points: string;
+          wins: string;
+        }>;
+      }>;
+    };
+  };
+}
+
+function apiDriverId(id: string): string {
+  const exceptions: Record<string, string> = {
+    'max-verstappen': 'max_verstappen',
+    'mick-schumacher': 'mick_schumacher',
+    'pietro-fittipaldi': 'pietro_fittipaldi',
+    'nyck-de-vries': 'de_vries',
+    'guanyu-zhou': 'zhou',
+    'carlos-sainz-jr': 'sainz',
+  };
+  return exceptions[id] ?? id.split('-').at(-1)!;
+}
+
+interface F1DbDriver {
+  id: string;
+  firstName: string;
+  lastName: string;
+  code: string;
+  permanentNumber: string;
+  nationality: string;
+}
+
+interface F1DbConstructor {
+  id: string;
+  name: string;
+  nationality: string;
+}
+
+interface F1DbRaceResult {
+  driverId: string;
+  constructorId: string;
+  driverNumber: string;
+  position: number | null;
+  positionText: string | null;
+  points: number | null;
+  grid: number | null;
+  laps: number | null;
+  status: string | null;
+}
+
+interface F1DbSeason {
+  drivers: F1DbDriver[];
+  constructors: F1DbConstructor[];
+  driverStandings: Array<{
+    driverId: string;
+    position: number;
+    points: number;
+    wins: number;
+  }>;
+  constructorStandings: Array<{
+    constructorId: string;
+    position: number;
+    points: number;
+    wins: number;
+  }>;
+  races: Array<{
+    round: number;
+    raceName: string;
+    date: string;
+    results: F1DbRaceResult[];
+  }>;
+}
+
+interface F1DbFallback {
+  seasons: Record<string, F1DbSeason>;
+}
 
 @Injectable()
 export class F1Service {
@@ -19,10 +156,13 @@ export class F1Service {
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly httpService: HttpService,
-    @InjectRepository(Driver) private readonly driverRepository: Repository<Driver>,
-    @InjectRepository(Constructor) private readonly constructorRepository: Repository<Constructor>,
+    @InjectRepository(Driver)
+    private readonly driverRepository: Repository<Driver>,
+    @InjectRepository(Constructor)
+    private readonly constructorRepository: Repository<Constructor>,
     @InjectRepository(Race) private readonly raceRepository: Repository<Race>,
-    @InjectRepository(Result) private readonly resultRepository: Repository<Result>,
+    @InjectRepository(Result)
+    private readonly resultRepository: Repository<Result>,
   ) {}
 
   async seedAll() {
@@ -43,15 +183,23 @@ export class F1Service {
     this.logger.log('드라이버 데이터 수집 중...');
     for (const year of this.TARGET_YEARS) {
       const url = `https://api.jolpi.ca/ergast/f1/${year}/drivers.json?limit=100`;
-      const { data } = await firstValueFrom(this.httpService.get(url));
+      const { data } = await firstValueFrom(
+        this.httpService.get<ApiResponse>(url),
+      );
       const drivers = data?.MRData?.DriverTable?.Drivers || [];
 
       for (const d of drivers) {
-        const exists = await this.driverRepository.findOne({ where: { driverId: d.driverId } });
+        const exists = await this.driverRepository.findOne({
+          where: { driverId: d.driverId },
+        });
         if (!exists) {
           await this.driverRepository.save({
             driverId: d.driverId,
-            code: d.code || (d.givenName.substring(0, 1) + d.familyName.substring(0, 2)).toUpperCase(),
+            code:
+              d.code ||
+              (
+                d.givenName.substring(0, 1) + d.familyName.substring(0, 2)
+              ).toUpperCase(),
             permanentNumber: d.permanentNumber || '0',
             givenName: d.givenName,
             familyName: d.familyName,
@@ -67,11 +215,15 @@ export class F1Service {
     this.logger.log('팀 데이터 수집 중...');
     for (const year of this.TARGET_YEARS) {
       const url = `https://api.jolpi.ca/ergast/f1/${year}/constructors.json?limit=100`;
-      const { data } = await firstValueFrom(this.httpService.get(url));
+      const { data } = await firstValueFrom(
+        this.httpService.get<ApiResponse>(url),
+      );
       const constructors = data?.MRData?.ConstructorTable?.Constructors || [];
 
       for (const c of constructors) {
-        const exists = await this.constructorRepository.findOne({ where: { constructorId: c.constructorId } });
+        const exists = await this.constructorRepository.findOne({
+          where: { constructorId: c.constructorId },
+        });
         if (!exists) {
           await this.constructorRepository.save({
             constructorId: c.constructorId,
@@ -89,7 +241,9 @@ export class F1Service {
     this.logger.log('경기 일정 수집 중...');
     for (const year of this.TARGET_YEARS) {
       const url = `https://api.jolpi.ca/ergast/f1/${year}.json`;
-      const { data } = await firstValueFrom(this.httpService.get(url));
+      const { data } = await firstValueFrom(
+        this.httpService.get<ApiResponse>(url),
+      );
       const races = data?.MRData?.RaceTable?.Races || [];
 
       for (const r of races) {
@@ -131,7 +285,9 @@ export class F1Service {
 
       do {
         const url = `https://api.jolpi.ca/ergast/f1/${year}/${endpoint}.json?limit=${this.PAGE_SIZE}&offset=${offset}`;
-        const { data } = await firstValueFrom(this.httpService.get(url));
+        const { data } = await firstValueFrom(
+          this.httpService.get<ApiResponse>(url),
+        );
         const races = data?.MRData?.RaceTable?.Races || [];
 
         total = Number(data?.MRData?.total ?? 0);
@@ -139,13 +295,20 @@ export class F1Service {
 
         for (const raceData of races) {
           const race = await this.raceRepository.findOne({
-            where: { season: Number(raceData.season), round: Number(raceData.round) },
+            where: {
+              season: Number(raceData.season),
+              round: Number(raceData.round),
+            },
           });
           if (!race) continue;
 
           for (const result of raceData[resultKey] || []) {
-            const driver = await this.driverRepository.findOne({ where: { driverId: result.Driver.driverId } });
-            const constructor = await this.constructorRepository.findOne({ where: { constructorId: result.Constructor.constructorId } });
+            const driver = await this.driverRepository.findOne({
+              where: { driverId: result.Driver.driverId },
+            });
+            const constructor = await this.constructorRepository.findOne({
+              where: { constructorId: result.Constructor.constructorId },
+            });
 
             if (driver) {
               const exists = await this.resultRepository.findOne({
@@ -184,8 +347,8 @@ export class F1Service {
   }
 
   async getDriverStandings(year: number = 2023) {
-    const cacheKey = `driver_standings_${year}`;
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const cacheKey = `v2_driver_standings_${year}`;
+    const cachedData = await this.cacheManager.get<unknown[]>(cacheKey);
     if (cachedData) {
       this.logger.log(`⚡ [REDIS CACHE HIT] ${year}년도 드라이버 랭킹`);
       return cachedData;
@@ -195,14 +358,21 @@ export class F1Service {
     const url = `https://api.jolpi.ca/ergast/f1/${year}/driverstandings.json`;
 
     try {
-      const { data } = await firstValueFrom(this.httpService.get(url));
-      const standingsList = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || [];
+      const { data } = await firstValueFrom(
+        this.httpService.get<ApiResponse>(url),
+      );
+      const standingsList =
+        data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings ||
+        [];
 
-      const result = standingsList.map((standing: any) => ({
+      if (!standingsList.length) throw new Error('Empty standings response');
+      const result = standingsList.map((standing) => ({
         id: standing.Driver.driverId,
         firstName: standing.Driver.givenName,
         lastName: standing.Driver.familyName,
-        code: standing.Driver.code || standing.Driver.familyName.substring(0, 3).toUpperCase(),
+        code:
+          standing.Driver.code ||
+          standing.Driver.familyName.substring(0, 3).toUpperCase(),
         nationality: standing.Driver.nationality,
         totalPoints: Number(standing.points),
         wins: Number(standing.wins),
@@ -212,27 +382,45 @@ export class F1Service {
       return result;
     } catch (error) {
       this.logger.error(`${year}년 드라이버 랭킹 조회 실패`, error);
-      return [];
+      const fallback = this.getFallbackDriverStandings(year);
+      if (fallback.length > 0) {
+        this.logger.warn(
+          `Jolpica 장애로 ${year}년 드라이버 랭킹에 F1DB 로컬 스냅샷을 사용합니다.`,
+        );
+        await this.cacheManager.set(cacheKey, fallback, 60_000);
+        return fallback;
+      }
+      throw new ServiceUnavailableException(
+        '순위 데이터를 불러오지 못했습니다.',
+      );
     }
   }
 
   async getDriverResults(year: number, driverId: string) {
-    const cacheKey = `driver_results_${year}_${driverId}`;
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const season = this.getFallbackSeason(year);
+    const driver = season && this.findFallbackDriver(season, driverId);
+    if (driver) driverId = apiDriverId(driver.id);
+    const cacheKey = `v2_driver_results_${year}_${driverId}`;
+    const cachedData = await this.cacheManager.get<unknown[]>(cacheKey);
     if (cachedData) {
       this.logger.log(`⚡ [REDIS CACHE HIT] ${year}년도 ${driverId} 상세 성적`);
       return cachedData;
     }
 
-    this.logger.log(`📊 [API FETCH] ${year}년도 ${driverId} 상세 성적 조회 중...`);
+    this.logger.log(
+      `📊 [API FETCH] ${year}년도 ${driverId} 상세 성적 조회 중...`,
+    );
 
     try {
-      const url = `https://api.jolpi.ca/ergast/f1/${year}/drivers/${driverId}/results.json`;
-      const { data } = await firstValueFrom(this.httpService.get(url));
+      const url = `https://api.jolpi.ca/ergast/f1/${year}/drivers/${encodeURIComponent(driverId)}/results.json?limit=100`;
+      const { data } = await firstValueFrom(
+        this.httpService.get<ApiResponse>(url),
+      );
       const races = data?.MRData?.RaceTable?.Races || [];
 
-      const result = races.flatMap((race: any) =>
-        (race.Results || []).map((result: any) => ({
+      if (!races.length && driver) throw new Error('Empty results response');
+      const result = races.flatMap((race) =>
+        (race.Results || []).map((result) => ({
           race: {
             round: Number(race.round),
             raceName: race.raceName,
@@ -255,13 +443,21 @@ export class F1Service {
       return result;
     } catch (error) {
       this.logger.error(`${year}년 ${driverId} 상세 성적 조회 실패`, error);
-      return [];
+      const fallback = this.getFallbackDriverResults(year, driverId);
+      if (fallback.length > 0) {
+        this.logger.warn(
+          `Jolpica 장애로 ${year}년 ${driverId} 기록에 F1DB 로컬 스냅샷을 사용합니다.`,
+        );
+        await this.cacheManager.set(cacheKey, fallback, 60_000);
+        return fallback;
+      }
+      throw new ServiceUnavailableException('경기 기록을 불러오지 못했습니다.');
     }
   }
 
   async getConstructorStandings(year: number = 2023) {
-    const cacheKey = `constructor_standings_${year}`;
-    const cachedData = await this.cacheManager.get(cacheKey);
+    const cacheKey = `v2_constructor_standings_${year}`;
+    const cachedData = await this.cacheManager.get<unknown[]>(cacheKey);
     if (cachedData) {
       this.logger.log(`⚡ [REDIS CACHE HIT] ${year}년도 공식 팀 랭킹`);
       return cachedData;
@@ -271,10 +467,16 @@ export class F1Service {
     const url = `https://api.jolpi.ca/ergast/f1/${year}/constructorStandings.json`;
 
     try {
-      const { data } = await firstValueFrom(this.httpService.get(url));
-      const standingsList = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings || [];
+      const { data } = await firstValueFrom(
+        this.httpService.get<ApiResponse>(url),
+      );
+      const standingsList =
+        data?.MRData?.StandingsTable?.StandingsLists?.[0]
+          ?.ConstructorStandings || [];
 
-      const result = standingsList.map((standing: any) => ({
+      if (!standingsList.length)
+        throw new Error('Empty constructor standings response');
+      const result = standingsList.map((standing) => ({
         name: standing.Constructor.name,
         nationality: standing.Constructor.nationality,
         position: standing.position,
@@ -286,7 +488,149 @@ export class F1Service {
       return result;
     } catch (error) {
       this.logger.error(`${year}년 팀 랭킹 조회 실패`, error);
-      return [];
+      const fallback = this.getFallbackConstructorStandings(year);
+      if (fallback.length > 0) {
+        this.logger.warn(
+          `Jolpica 장애로 ${year}년 팀 랭킹에 F1DB 로컬 스냅샷을 사용합니다.`,
+        );
+        await this.cacheManager.set(cacheKey, fallback, 60_000);
+        return fallback;
+      }
+      throw new ServiceUnavailableException('팀 순위를 불러오지 못했습니다.');
     }
+  }
+
+  private getFallbackSeason(year: number): F1DbSeason | undefined {
+    return f1dbFallback.seasons[String(year)];
+  }
+
+  private getFallbackDriverStandings(year: number) {
+    const season = this.getFallbackSeason(year);
+    if (!season) return [];
+
+    return season.driverStandings
+      .map((standing) => {
+        const driver = season.drivers.find(
+          (item) => item.id === standing.driverId,
+        );
+        if (!driver) return null;
+
+        return {
+          id: apiDriverId(driver.id),
+          firstName: driver.firstName,
+          lastName: driver.lastName,
+          code: driver.code,
+          nationality: driver.nationality,
+          totalPoints: standing.points,
+          wins: standing.wins,
+        };
+      })
+      .filter(
+        (standing): standing is NonNullable<typeof standing> =>
+          standing !== null,
+      );
+  }
+
+  private getFallbackConstructorStandings(year: number) {
+    const season = this.getFallbackSeason(year);
+    if (!season) return [];
+
+    const winsByConstructor = new Map<string, number>();
+    for (const race of season.races) {
+      const winner = race.results.find((result) => result.position === 1);
+      if (winner) {
+        winsByConstructor.set(
+          winner.constructorId,
+          (winsByConstructor.get(winner.constructorId) || 0) + 1,
+        );
+      }
+    }
+
+    return season.constructorStandings
+      .map((standing) => {
+        const constructor = season.constructors.find(
+          (item) => item.id === standing.constructorId,
+        );
+        if (!constructor) return null;
+
+        return {
+          name: constructor.name,
+          nationality: constructor.nationality,
+          position: standing.position,
+          totalPoints: standing.points,
+          wins: winsByConstructor.get(constructor.id) || 0,
+        };
+      })
+      .filter(
+        (standing): standing is NonNullable<typeof standing> =>
+          standing !== null,
+      );
+  }
+
+  private getFallbackDriverResults(year: number, requestedDriverId: string) {
+    const season = this.getFallbackSeason(year);
+    if (!season) return [];
+
+    const driver = this.findFallbackDriver(season, requestedDriverId);
+    if (!driver) return [];
+
+    return season.races.flatMap((race) =>
+      race.results
+        .filter((result) => result.driverId === driver.id)
+        .map((result) => {
+          const constructor = season.constructors.find(
+            (item) => item.id === result.constructorId,
+          );
+          const finished =
+            result.positionText !== null && /^\d+$/.test(result.positionText);
+
+          return {
+            race: {
+              round: race.round,
+              raceName: race.raceName,
+              date: race.date,
+            },
+            driver: {
+              givenName: driver.firstName,
+              familyName: driver.lastName,
+              permanentNumber: result.driverNumber || driver.permanentNumber,
+            },
+            constructor: constructor
+              ? {
+                  constructorId: constructor.id,
+                  name: constructor.name,
+                  nationality: constructor.nationality,
+                }
+              : undefined,
+            position: result.position || 0,
+            points: result.points ?? 0,
+            grid: result.grid || 0,
+            laps: result.laps || 0,
+            status: finished
+              ? 'Finished'
+              : result.status || result.positionText || 'Unknown',
+          };
+        }),
+    );
+  }
+
+  private findFallbackDriver(season: F1DbSeason, requestedDriverId: string) {
+    const normalized = requestedDriverId
+      .trim()
+      .toLowerCase()
+      .replaceAll('_', '-');
+    const exact = season.drivers.find(
+      (driver) =>
+        driver.id === normalized ||
+        apiDriverId(driver.id) === requestedDriverId,
+    );
+    if (exact) return exact;
+
+    const matches = season.drivers.filter(
+      (driver) =>
+        driver.id.endsWith(`-${normalized}`) ||
+        driver.lastName.toLowerCase() === normalized,
+    );
+    return matches.length === 1 ? matches[0] : undefined;
   }
 }

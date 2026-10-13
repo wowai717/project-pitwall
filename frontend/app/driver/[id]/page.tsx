@@ -1,6 +1,7 @@
 import Link from 'next/link';
 // 기존 standings 폴더에 있는 텔레메트리 차트를 그대로 가져다 씁니다!
 import TelemetryChart from '../../standings/TelemetryChart';
+import { notFound } from 'next/navigation';
 
 interface DriverResult {
   race: {
@@ -31,33 +32,37 @@ export default async function DriverDashboardPage({
 
   const driverId = resolvedParams.id;
   const year = resolvedSearchParams.year || '2023';
+  if (!/^202[0-5]$/.test(year) || !/^[a-z0-9_-]{1,64}$/.test(driverId)) notFound();
 
   let results: DriverResult[] = [];
+  let failed = false;
 
   try {
     // 백엔드에서 해당 선수의 1년 치 성적을 다 가져옵니다.
-    const res = await fetch(`${API_BASE_URL}/f1/results?year=${year}&driverId=${driverId}`, { cache: 'no-store' });
-    if (res.ok) results = await res.json();
+    const res = await fetch(`${API_BASE_URL}/f1/results?year=${year}&driverId=${encodeURIComponent(driverId)}`, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
+    if (!res.ok) throw new Error('Results request failed');
+    results = await res.json();
   } catch (error) {
     console.error('데이터 가져오기 실패:', error);
+    failed = true;
   }
 
   // 데이터가 아예 없으면 에러 화면 표시
   if (!results || results.length === 0) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono text-neutral-500">
-        NO DATA FOUND FOR {driverId.toUpperCase()} IN {year}
+        <div className="space-y-4 p-6 text-center"><p role={failed ? 'alert' : 'status'}>{failed ? '경기 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' : `${year} 시즌의 선수 기록이 없습니다.`}</p><Link className="inline-block text-cyan-300 underline" href={`/standings?year=${year}`}>순위표로 돌아가기</Link>{failed && <Link className="ml-4 inline-block text-white underline" href={`/driver/${driverId}?year=${year}`}>다시 시도</Link>}</div>
       </div>
     );
   }
 
   // 선수 정보 추출 (첫 번째 결과에서 뽑아옴)
   const driverInfo = results[0]?.driver;
-  const driverNumber = driverInfo?.permanentNumber || '0';
 
   // 현재 선택된 라운드 (URL 파라미터가 없으면 1라운드 또는 첫 번째 경기를 기본으로 설정)
   const selectedRound = resolvedSearchParams.round ? parseInt(resolvedSearchParams.round, 10) : results[0]?.race?.round;
   const currentResult = results.find((r) => r.race.round == selectedRound) || results[0];
+  const driverNumber = currentResult.driver?.permanentNumber || '0';
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#050505] text-white p-4 md:p-8 font-sans selection:bg-red-600">
@@ -67,14 +72,14 @@ export default async function DriverDashboardPage({
         <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[#222] pb-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <Link href="/standings" className="text-xs font-mono text-neutral-500 hover:text-white transition-colors bg-[#111] px-3 py-1 rounded border border-[#333]">
+              <Link href={`/standings?year=${year}`} className="text-xs font-mono text-neutral-300 hover:text-white transition-colors bg-[#111] px-3 py-2 rounded border border-[#333]">
                 ← 순위표로 돌아가기
               </Link>
               <span className="text-[10px] font-mono text-red-500 bg-red-600/10 px-2 py-0.5 rounded border border-red-600/30 uppercase tracking-widest">
                 레이스 분석 대시보드
               </span>
             </div>
-            <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter uppercase text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+            <h1 className="text-3xl md:text-5xl font-black italic uppercase text-white">
               {driverInfo.givenName} <span className="text-red-600">{driverInfo.familyName}</span>
             </h1>
           </div>
@@ -88,13 +93,13 @@ export default async function DriverDashboardPage({
         <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6">
           
           {/* 좌측: 레이스 히스토리 (사이드바) */}
-          <div className="bg-[#0a0a0a] border border-[#222] rounded-xl p-4 flex flex-col h-[72vh]">
+          <div className="bg-[#0a0a0a] border border-[#222] rounded-lg p-4 flex flex-col h-64 xl:h-[72vh] min-w-0">
             <h2 className="text-sm font-medium text-neutral-400 tracking-[0.18em] mb-4 border-b border-[#222] pb-2 uppercase">
               레이스 기록 | {results.length}경기
             </h2>
             <div className="overflow-y-auto no-scrollbar flex-1 flex flex-col gap-2 pr-1">
               {results.map((res, index: number) => {
-                const isSelected = res.race.round == selectedRound;
+                const isSelected = res.race.round === currentResult.race.round;
                 
                 // 순위 컬러링
                 let posColor = 'text-neutral-500';
@@ -106,6 +111,7 @@ export default async function DriverDashboardPage({
                   <Link 
                     key={index}
                     href={`/driver/${driverId}?year=${year}&round=${res.race.round}`}
+                    aria-current={isSelected ? 'page' : undefined}
                     className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-300 ${
                       isSelected 
                         ? 'bg-red-600/10 border-red-600/50 shadow-[inset_4px_0_0_rgba(220,38,38,1)]' 
@@ -163,7 +169,7 @@ export default async function DriverDashboardPage({
             </div>
 
             {/* 하단: 거대한 텔레메트리 차트! */}
-            <div className="flex-1 bg-[#0a0a0a] border border-[#222] rounded-xl p-2 relative min-h-[400px]">
+            <div className="flex-1 min-w-0">
               <TelemetryChart 
                 key={`${driverId}-${year}-${currentResult.race.round}`}
                 year={parseInt(year, 10)} 

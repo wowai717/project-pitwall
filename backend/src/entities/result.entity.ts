@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Driver } from './driver.entity';
 import { Constructor } from './constructor.entity';
 import { Race } from './race.entity';
@@ -11,8 +17,16 @@ export class Result {
   @Column()
   position: number; // 순위 (1, 2, 3...)
 
-  @Column()
-  points: number; // 획득 포인트 (25, 18...)
+  @Column({
+    type: 'decimal',
+    precision: 6,
+    scale: 2,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => Number(value),
+    },
+  })
+  points: number;
 
   @Column()
   grid: number; // 출발 순서

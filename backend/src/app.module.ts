@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-yet';
+import { KeyvAdapter } from 'cache-manager';
 import * as Joi from 'joi';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -10,7 +11,7 @@ import { Driver } from './entities/driver.entity';
 import { Constructor } from './entities/constructor.entity';
 import { Race } from './entities/race.entity';
 import { Result } from './entities/result.entity';
-import { F1Module } from './f1/f1.module'; 
+import { F1Module } from './f1/f1.module';
 import { User } from './entities/user.entity';
 import { Post } from './entities/post.entity';
 import { Comment } from './entities/comment.entity';
@@ -23,7 +24,9 @@ import { CommunityService } from './community/community.service';
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
-        NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
+        NODE_ENV: Joi.string()
+          .valid('development', 'test', 'production')
+          .default('development'),
         DB_HOST: Joi.string().default('mysql'),
         DB_PORT: Joi.number().default(3306),
         DB_USERNAME: Joi.string().required(),
@@ -31,21 +34,37 @@ import { CommunityService } from './community/community.service';
         DB_NAME: Joi.string().required(),
         REDIS_HOST: Joi.string().default('redis'),
         REDIS_PORT: Joi.number().default(6379),
+        FRONTEND_ORIGIN: Joi.string().required(),
         JWT_SECRET: Joi.string().min(32).required(),
-        TYPEORM_SYNC: Joi.boolean().truthy('true').truthy('1').falsy('false').falsy('0').default(false),
+        TYPEORM_SYNC: Joi.boolean()
+          .truthy('true')
+          .truthy('1')
+          .falsy('false')
+          .falsy('0')
+          .default(false),
       }),
     }),
     CacheModule.registerAsync({
       isGlobal: true,
-      useFactory: async () => ({
-        store: await redisStore({
+      useFactory: async () => {
+        const store = await redisStore({
           socket: {
             host: process.env.REDIS_HOST || 'redis',
             port: Number(process.env.REDIS_PORT) || 6379,
           },
-        }),
-        ttl: 60 * 60 * 1000, 
-      }),
+        });
+        return {
+          stores: [
+            new KeyvAdapter({
+              ...store,
+              disconnect: async () => {
+                await store.client.quit();
+              },
+            }),
+          ],
+          ttl: 60 * 60 * 1000,
+        };
+      },
     }),
     TypeOrmModule.forRoot({
       type: 'mysql',
@@ -55,10 +74,12 @@ import { CommunityService } from './community/community.service';
       password: process.env.DB_PASSWORD || 'root',
       database: process.env.DB_NAME || 'pitstop_db',
       entities: [Driver, Constructor, Race, Result, User, Post, Comment],
-      synchronize: process.env.TYPEORM_SYNC === 'true',
+      synchronize:
+        process.env.NODE_ENV !== 'production' &&
+        process.env.TYPEORM_SYNC === 'true',
     }),
-    
-    F1Module, 
+
+    F1Module,
     AuthModule,
     TypeOrmModule.forFeature([Post, Comment, User]),
   ],
