@@ -9,6 +9,7 @@ const { chromium, expect } = require(process.env.PLAYWRIGHT_MODULE || '@playwrig
 const base = process.env.UI_BASE_URL || 'http://localhost:3000';
 const output = process.env.UI_SCREENSHOTS || '/tmp/pitwall-ui';
 const username = `ui_check_${Date.now()}`;
+const postTitle = `UI verification ${username}`;
 const password = randomBytes(18).toString('hex');
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -53,11 +54,11 @@ try {
   await page.getByRole('button', { name: '로그인', exact: true }).click();
   await page.waitForURL('**/community');
   await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible();
-  await page.getByLabel('제목', { exact: true }).fill('UI verification');
+  await page.getByLabel('제목', { exact: true }).fill(postTitle);
   await page.getByLabel('내용', { exact: true }).fill('Temporary integration test post.');
   await page.getByRole('button', { name: '게시글 등록' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '게시글을 등록했습니다.' })).toBeVisible();
-  await page.getByRole('button', { name: /UI verification/ }).click();
+  await expect(page.getByRole('status').filter({ hasText: /^게시글을 등록했습니다\.$/ })).toBeVisible();
+  await page.getByRole('button').filter({ has: page.getByRole('heading', { name: postTitle, exact: true }) }).click();
   await page.getByLabel('댓글 작성').fill('Temporary integration test comment.');
   await page.getByRole('button', { name: '댓글 등록' }).click();
   await expect(page.getByText('Temporary integration test comment.', { exact: true })).toBeVisible();
@@ -69,7 +70,7 @@ try {
 
   await page.goto(base + '/driver/hamilton?year=2021');
   await expect(page.getByRole('link', { name: /순위표로 돌아가기/ })).toHaveAttribute('href', '/standings?year=2021');
-  await expect(page.getByText('역사 레이스 모드')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '역사 레이스 모드', exact: true })).toBeVisible();
   console.log('PASS historical mode and season navigation');
 
   await page.goto(base + '/login');
@@ -91,19 +92,20 @@ try {
       sessions: [{ session_key: 1 }],
       laps: [1, 2, 3].map(lap => ({ lap_number: lap, date_start: start, lap_duration: 90 + lap, duration_sector_1: 30, duration_sector_2: 30, duration_sector_3: 30 + lap, st_speed: 300 })),
       stints: [{ compound: 'SOFT', lap_start: 1, lap_end: 3, stint_number: 1, tyre_age_at_start: 0 }],
-      car_data: Array.from({ length: 30 }, (_, i) => ({ date: new Date(Date.parse(start) + i * 3000).toISOString(), speed: 180 + i, throttle: 90, brake: 0, rpm: 11000, n_gear: 6 })),
-      location: Array.from({ length: 30 }, (_, i) => ({ date: new Date(Date.parse(start) + i * 3000).toISOString(), x: 100 * Math.cos(i / 29 * 2 * Math.PI), y: 100 * Math.sin(i / 29 * 2 * Math.PI) })),
+      car_data: Array.from({ length: 92 }, (_, i) => ({ date: new Date(Date.parse(start) + i * 1000).toISOString(), speed: 180 + i / 3, throttle: 90, brake: 0, rpm: 11000, n_gear: 6 })),
+      location: Array.from({ length: 92 }, (_, i) => ({ date: new Date(Date.parse(start) + i * 1000).toISOString(), x: 100 * Math.cos(i / 91 * 2 * Math.PI), y: 100 * Math.sin(i / 91 * 2 * Math.PI) })),
       weather: [{ air_temperature: 25, track_temperature: 35, rainfall: 0, humidity: 40, wind_speed: 2 }],
     };
     if (endpoint === 'car_data' && ++carRequests === 1) return route.fulfill({ status: 503, json: {} });
     await route.fulfill({ json: fixtures[endpoint] ?? [] });
   });
   await page.goto(base + '/driver/hamilton?year=2023&round=1');
-  await page.getByRole('button', { name: /데이터 불러오기/ }).click();
+  await page.getByRole('button', { name: '데이터 불러오기', exact: true }).click();
   await expect(page.getByRole('button', { name: '누락 데이터 다시 조회' })).toBeVisible({ timeout: 20000 });
-  assert.equal(await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('telemetry:v9:')).length), 0);
+  assert.equal(await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('pitwall:v1:') && key.includes(':lap:')).length), 0);
   await page.evaluate(() => { Storage.prototype.setItem = function () { throw new DOMException('Quota exceeded', 'QuotaExceededError'); }; });
   await page.getByRole('button', { name: '누락 데이터 다시 조회' }).click();
+  await expect(page.getByLabel('분석할 랩')).toBeEnabled({ timeout: 20000 });
   await expect(page.getByRole('heading', { name: '랩 퍼포먼스 흐름' })).toBeVisible({ timeout: 20000 });
   await expect(page.getByRole('button', { name: '누락 데이터 다시 조회' })).toHaveCount(0);
   await overflowCheck('telemetry');
@@ -112,8 +114,9 @@ try {
   await overflowCheck('desktop telemetry');
   await screenshot('telemetry-desktop');
   console.log('PASS partial telemetry retry and storage quota failure (mocked OpenF1)');
-  await page.locator('a[href="/driver/hamilton?year=2023&round=2"]').click();
-  await expect(page.getByRole('button', { name: /데이터 불러오기/ })).toBeVisible();
+  await page.getByLabel('경기', { exact: true }).selectOption('2');
+  await page.waitForURL('**/driver/hamilton?year=2023&round=2');
+  await expect(page.getByRole('button', { name: '데이터 불러오기', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '랩 퍼포먼스 흐름' })).toHaveCount(0);
   console.log('PASS telemetry state reset on race navigation');
   assert.deepEqual(errors, [], 'browser runtime errors');

@@ -1,22 +1,29 @@
 import Link from 'next/link';
-// 기존 standings 폴더에 있는 텔레메트리 차트를 그대로 가져다 씁니다!
-import TelemetryChart from '../../standings/TelemetryChart';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { notFound } from 'next/navigation';
+import TelemetryChart from '../../standings/TelemetryChart';
+import DashboardSelection from '../DashboardSelection';
 
 interface DriverResult {
-  race: {
-    round: number;
-    raceName: string;
-    date?: string;
-  };
-  driver: {
-    givenName: string;
-    familyName: string;
-    permanentNumber?: string;
-  };
+  race: { round: number; raceName: string; date?: string };
+  driver: { givenName: string; familyName: string; permanentNumber?: string };
+  constructor?: { name?: string };
   position: number;
   points: number;
+  grid?: number | null;
+  laps?: number | null;
   status: string;
+}
+
+interface DriverOption {
+  id: string;
+  firstName: string;
+  lastName: string;
 }
 
 export default async function DriverDashboardPage({
@@ -26,162 +33,267 @@ export default async function DriverDashboardPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ year?: string; round?: string }>;
 }) {
-  const API_BASE_URL = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-  const resolvedParams = await params;
+  const apiBase =
+    process.env.API_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'http://localhost:4000';
+  const { id: driverId } = await params;
   const resolvedSearchParams = await searchParams;
-
-  const driverId = resolvedParams.id;
   const year = resolvedSearchParams.year || '2023';
-  if (!/^202[0-5]$/.test(year) || !/^[a-z0-9_-]{1,64}$/.test(driverId)) notFound();
+  if (!/^202[0-5]$/.test(year) || !/^[a-z0-9_-]{1,64}$/.test(driverId))
+    notFound();
+  if (
+    resolvedSearchParams.round &&
+    (!/^\d{1,2}$/.test(resolvedSearchParams.round) ||
+      Number(resolvedSearchParams.round) < 1)
+  )
+    notFound();
 
+  const driversRequest: Promise<DriverOption[]> = fetch(
+    `${apiBase}/f1/standings?year=${year}`,
+    { cache: 'no-store', signal: AbortSignal.timeout(12000) },
+  )
+    .then(async (response) => (response.ok ? await response.json() : []))
+    .catch(() => []);
   let results: DriverResult[] = [];
   let failed = false;
-
   try {
-    // 백엔드에서 해당 선수의 1년 치 성적을 다 가져옵니다.
-    const res = await fetch(`${API_BASE_URL}/f1/results?year=${year}&driverId=${encodeURIComponent(driverId)}`, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
-    if (!res.ok) throw new Error('Results request failed');
-    results = await res.json();
+    const response = await fetch(
+      `${apiBase}/f1/results?year=${year}&driverId=${encodeURIComponent(driverId)}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(12000) },
+    );
+    if (!response.ok) throw new Error('Results request failed');
+    results = await response.json();
   } catch (error) {
-    console.error('데이터 가져오기 실패:', error);
+    console.error('경기 기록 조회 실패:', error);
     failed = true;
   }
+  const drivers = await driversRequest;
 
-  // 데이터가 아예 없으면 에러 화면 표시
-  if (!results || results.length === 0) {
+  if (!results.length)
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center font-mono text-neutral-500">
-        <div className="space-y-4 p-6 text-center"><p role={failed ? 'alert' : 'status'}>{failed ? '경기 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' : `${year} 시즌의 선수 기록이 없습니다.`}</p><Link className="inline-block text-cyan-300 underline" href={`/standings?year=${year}`}>순위표로 돌아가기</Link>{failed && <Link className="ml-4 inline-block text-white underline" href={`/driver/${driverId}?year=${year}`}>다시 시도</Link>}</div>
+      <div className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#0b0c0e] p-6 text-center">
+        <div className="space-y-4 text-sm text-neutral-300">
+          <p role={failed ? 'alert' : 'status'}>
+            {failed
+              ? '경기 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+              : `${year} 시즌의 선수 기록이 없습니다.`}
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
+            <Link
+              className="inline-flex min-h-11 items-center text-cyan-300 underline"
+              href={`/standings?year=${year}`}
+            >
+              순위표로 돌아가기
+            </Link>
+            {failed && (
+              <Link
+                className="inline-flex min-h-11 items-center text-white underline"
+                href={`/driver/${driverId}?year=${year}`}
+              >
+                다시 시도
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
     );
-  }
 
-  // 선수 정보 추출 (첫 번째 결과에서 뽑아옴)
-  const driverInfo = results[0]?.driver;
-
-  // 현재 선택된 라운드 (URL 파라미터가 없으면 1라운드 또는 첫 번째 경기를 기본으로 설정)
-  const selectedRound = resolvedSearchParams.round ? parseInt(resolvedSearchParams.round, 10) : results[0]?.race?.round;
-  const currentResult = results.find((r) => r.race.round == selectedRound) || results[0];
-  const driverNumber = currentResult.driver?.permanentNumber || '0';
+  const selectedRound = resolvedSearchParams.round
+    ? Number(resolvedSearchParams.round)
+    : results[0].race.round;
+  const currentResult =
+    results.find((result) => result.race.round === selectedRound) || results[0];
+  const driverInfo = currentResult.driver;
+  const driverNumber = driverInfo.permanentNumber || '0';
+  const driverName = `${driverInfo.givenName} ${driverInfo.familyName}`;
+  if (!drivers.some((driver) => driver.id === driverId))
+    drivers.unshift({
+      id: driverId,
+      firstName: driverInfo.givenName,
+      lastName: driverInfo.familyName,
+    });
+  const currentIndex = results.indexOf(currentResult);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#050505] text-white p-4 md:p-8 font-sans selection:bg-red-600">
-      <div className="max-w-[1800px] mx-auto">
-        
-        {/* 🏁 대시보드 헤더 */}
-        <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[#222] pb-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Link href={`/standings?year=${year}`} className="text-xs font-mono text-neutral-300 hover:text-white transition-colors bg-[#111] px-3 py-2 rounded border border-[#333]">
-                ← 순위표로 돌아가기
-              </Link>
-              <span className="text-[10px] font-mono text-red-500 bg-red-600/10 px-2 py-0.5 rounded border border-red-600/30 uppercase tracking-widest">
-                레이스 분석 대시보드
+    <div className="min-h-[calc(100vh-64px)] bg-[#0b0c0e] px-4 py-5 text-white md:px-8 md:py-6">
+      <div className="mx-auto max-w-[1600px]">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+          <div className="min-w-0">
+            <Link
+              href={`/standings?year=${year}`}
+              className="mb-1 inline-flex min-h-11 items-center gap-1.5 text-xs text-neutral-400 hover:text-white"
+            >
+              <ArrowLeft size={14} aria-hidden="true" />
+              순위표로 돌아가기
+            </Link>
+            <h1 className="text-2xl font-semibold md:text-3xl">
+              {driverName}{' '}
+              <span className="ml-1 text-lg font-normal tabular-nums text-neutral-500">
+                #{driverNumber}
               </span>
-            </div>
-            <h1 className="text-3xl md:text-5xl font-black italic uppercase text-white">
-              {driverInfo.givenName} <span className="text-red-600">{driverInfo.familyName}</span>
             </h1>
+            <p className="mt-1 text-sm text-neutral-400">
+              {currentResult.constructor?.name || '레이스 분석'}
+              <span className="mx-2 text-neutral-700">/</span>
+              {year}
+            </p>
           </div>
-          <div className="text-right">
-            <div className="text-4xl font-black italic text-neutral-300 font-mono tracking-tighter">#{driverNumber}</div>
-            <div className="text-neutral-500 text-xs font-mono uppercase tracking-[0.2em] mt-1">{year} Season</div>
+          <div className="flex shrink-0 items-center gap-2">
+            {results[currentIndex - 1] ? (
+              <Link
+                href={`/driver/${driverId}?year=${year}&round=${results[currentIndex - 1].race.round}`}
+                aria-label="이전 경기"
+                title="이전 경기"
+                className="flex h-11 w-11 items-center justify-center rounded border border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+              >
+                <ChevronLeft size={18} aria-hidden="true" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                aria-label="이전 경기"
+                title="이전 경기"
+                disabled
+                className="flex h-11 w-11 items-center justify-center rounded border border-neutral-800 text-neutral-700"
+              >
+                <ChevronLeft size={18} aria-hidden="true" />
+              </button>
+            )}
+            {results[currentIndex + 1] ? (
+              <Link
+                href={`/driver/${driverId}?year=${year}&round=${results[currentIndex + 1].race.round}`}
+                aria-label="다음 경기"
+                title="다음 경기"
+                className="flex h-11 w-11 items-center justify-center rounded border border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+              >
+                <ChevronRight size={18} aria-hidden="true" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                aria-label="다음 경기"
+                title="다음 경기"
+                disabled
+                className="flex h-11 w-11 items-center justify-center rounded border border-neutral-800 text-neutral-700"
+              >
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </header>
 
-        {/* 💻 대시보드 메인 레이아웃 (2단 그리드) */}
-        <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6">
-          
-          {/* 좌측: 레이스 히스토리 (사이드바) */}
-          <div className="bg-[#0a0a0a] border border-[#222] rounded-lg p-4 flex flex-col h-64 xl:h-[72vh] min-w-0">
-            <h2 className="text-sm font-medium text-neutral-400 tracking-[0.18em] mb-4 border-b border-[#222] pb-2 uppercase">
-              레이스 기록 | {results.length}경기
+        <DashboardSelection
+          driverId={driverId}
+          year={year}
+          round={currentResult.race.round}
+          drivers={drivers}
+          races={results.map((result) => result.race)}
+        />
+
+        <section
+          aria-label="경기 결과"
+          className="border-b border-neutral-800 py-5"
+        >
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold md:text-xl">
+              {currentResult.race.raceName}
             </h2>
-            <div className="overflow-y-auto no-scrollbar flex-1 flex flex-col gap-2 pr-1">
-              {results.map((res, index: number) => {
-                const isSelected = res.race.round === currentResult.race.round;
-                
-                // 순위 컬러링
-                let posColor = 'text-neutral-500';
-                if (res.position === 1) posColor = 'text-yellow-400';
-                else if (res.position === 2) posColor = 'text-neutral-300';
-                else if (res.position === 3) posColor = 'text-orange-400';
-
-                return (
-                  <Link 
-                    key={index}
-                    href={`/driver/${driverId}?year=${year}&round=${res.race.round}`}
-                    aria-current={isSelected ? 'page' : undefined}
-                    className={`flex justify-between items-center p-3 rounded-lg border transition-all duration-300 ${
-                      isSelected 
-                        ? 'bg-red-600/10 border-red-600/50 shadow-[inset_4px_0_0_rgba(220,38,38,1)]' 
-                        : 'bg-[#111] border-[#222] hover:bg-[#1a1a1a] hover:border-[#444]'
-                    }`}
-                  >
-                    <div className="flex gap-3 items-center">
-                      <span className={`text-[10px] font-mono tracking-wider w-7 text-center rounded py-1 ${isSelected ? 'bg-red-600 text-white' : 'bg-black/50 text-neutral-500'}`}>
-                        R{res.race.round}
-                      </span>
-                      <span className={`font-bold text-sm tracking-wide ${isSelected ? 'text-white' : 'text-neutral-400'}`}>
-                        {res.race.raceName.replace('Grand Prix', 'GP')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className={`text-lg font-black italic font-mono ${posColor}`}>P{res.position}</span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+            <span className="text-xs tabular-nums text-neutral-500">
+              R{currentResult.race.round}
+              {currentResult.race.date ? ` · ${currentResult.race.date}` : ''}
+            </span>
           </div>
-
-          {/* 우측: 텔레메트리 모니터 (메인 뷰) */}
-          <div className="min-w-0 flex flex-col gap-6">
-            
-            {/* 상단: 선택된 경기 요약 카드 */}
-            <div className="bg-[#0a0a0a] border border-[#222] rounded-xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/5 blur-[50px] rounded-full pointer-events-none"></div>
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  <p className="text-green-500 font-medium text-[11px] tracking-[0.18em] uppercase">현재 선택 경기</p>
-                </div>
-                <h2 className="text-2xl font-black italic text-white tracking-tight">
-                  {currentResult.race.raceName}
-                </h2>
-                <p className="text-neutral-400 text-sm mt-1">라운드 {currentResult.race.round} | {currentResult.race.date}</p>
-              </div>
-              
-              <div className="mt-4 md:mt-0 flex gap-6 text-right">
-                <div>
-                  <p className="text-neutral-600 text-[11px] tracking-[0.18em] mb-1 uppercase">결승 순위</p>
-                  <p className="text-2xl font-black italic text-white font-mono">P{currentResult.position}</p>
-                </div>
-                <div>
-                  <p className="text-neutral-600 text-[11px] tracking-[0.18em] mb-1 uppercase">포인트</p>
-                  <p className="text-2xl font-black italic text-red-500 font-mono">+{currentResult.points}</p>
-                </div>
-                <div>
-                  <p className="text-neutral-600 text-[11px] tracking-[0.18em] mb-1 uppercase">상태</p>
-                  <p className="text-sm font-bold text-neutral-300 uppercase mt-1">{currentResult.status}</p>
-                </div>
-              </div>
+          <dl className="grid grid-cols-3 gap-x-4 gap-y-4 md:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.4fr)]">
+            <div>
+              <dt className="text-xs text-neutral-500">결승 순위</dt>
+              <dd className="mt-1 text-xl font-semibold tabular-nums">
+                P{currentResult.position}
+              </dd>
             </div>
-
-            {/* 하단: 거대한 텔레메트리 차트! */}
-            <div className="flex-1 min-w-0">
-              <TelemetryChart 
-                key={`${driverId}-${year}-${currentResult.race.round}`}
-                year={parseInt(year, 10)} 
-                round={currentResult.race.round} 
-                raceName={currentResult.race.raceName}
-                raceDate={currentResult.race.date}
-                driverNumber={driverNumber} 
-              />
+            <div>
+              <dt className="text-xs text-neutral-500">포인트</dt>
+              <dd className="mt-1 text-xl font-semibold tabular-nums text-red-400">
+                {currentResult.points}
+              </dd>
             </div>
-          </div>
+            <div>
+              <dt className="text-xs text-neutral-500">출발 순위</dt>
+              <dd className="mt-1 text-xl font-semibold tabular-nums">
+                {currentResult.grid != null
+                  ? currentResult.grid > 0
+                    ? `P${currentResult.grid}`
+                    : currentResult.grid
+                  : '-'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-neutral-500">주행 랩</dt>
+              <dd className="mt-1 text-xl font-semibold tabular-nums">
+                {currentResult.laps ?? '-'}
+              </dd>
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <dt className="text-xs text-neutral-500">상태</dt>
+              <dd className="mt-1 break-words text-sm font-medium leading-7 text-neutral-300">
+                {currentResult.status === 'Finished'
+                  ? '완주'
+                  : currentResult.status}
+              </dd>
+            </div>
+          </dl>
+        </section>
 
+        <div className="min-w-0 py-5">
+          <TelemetryChart
+            key={`${driverId}-${year}-${currentResult.race.round}`}
+            year={Number(year)}
+            round={currentResult.race.round}
+            raceName={currentResult.race.raceName}
+            raceDate={currentResult.race.date}
+            driverNumber={driverNumber}
+          />
         </div>
+
+        <details className="border-y border-neutral-800 text-sm">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 py-3 text-neutral-300">
+            {year} 시즌 경기 기록 · {results.length}경기
+            <ChevronDown size={16} aria-hidden="true" />
+          </summary>
+          <ol className="grid divide-y divide-neutral-800 border-t border-neutral-800 md:grid-cols-2 md:gap-x-8">
+            {results.map((result) => (
+              <li key={result.race.round}>
+                <Link
+                  href={`/driver/${driverId}?year=${year}&round=${result.race.round}`}
+                  aria-current={
+                    result.race.round === currentResult.race.round
+                      ? 'page'
+                      : undefined
+                  }
+                  className="flex min-h-12 items-center justify-between gap-3 py-2 text-neutral-400 hover:text-white aria-[current=page]:text-red-400"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="w-7 shrink-0 text-xs tabular-nums text-neutral-500">
+                      R{result.race.round}
+                    </span>
+                    <span className="text-sm">
+                      {result.race.raceName.replace('Grand Prix', 'GP')}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm tabular-nums">
+                    P{result.position}
+                    <span className="ml-4 text-xs text-neutral-500">
+                      {result.points} pts
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </details>
+        <footer className="py-5 text-xs text-neutral-500">
+          경기 결과 · Jolpica / F1DB
+        </footer>
       </div>
     </div>
   );

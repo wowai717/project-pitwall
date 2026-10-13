@@ -400,7 +400,7 @@ export class F1Service {
     const season = this.getFallbackSeason(year);
     const driver = season && this.findFallbackDriver(season, driverId);
     if (driver) driverId = apiDriverId(driver.id);
-    const cacheKey = `v2_driver_results_${year}_${driverId}`;
+    const cacheKey = `v3_driver_results_${year}_${driverId}`;
     const cachedData = await this.cacheManager.get<unknown[]>(cacheKey);
     if (cachedData) {
       this.logger.log(`⚡ [REDIS CACHE HIT] ${year}년도 ${driverId} 상세 성적`);
@@ -433,8 +433,8 @@ export class F1Service {
           constructor: result.Constructor,
           position: Number(result.position),
           points: Number(result.points),
-          grid: Number(result.grid),
-          laps: Number(result.laps),
+          grid: result.grid == null ? null : Number(result.grid),
+          laps: result.laps == null ? null : Number(result.laps),
           status: result.status,
         })),
       );
@@ -604,8 +604,8 @@ export class F1Service {
               : undefined,
             position: result.position || 0,
             points: result.points ?? 0,
-            grid: result.grid || 0,
-            laps: result.laps || 0,
+            grid: result.grid,
+            laps: result.laps,
             status: finished
               ? 'Finished'
               : result.status || result.positionText || 'Unknown',
