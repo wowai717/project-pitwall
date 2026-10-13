@@ -68,6 +68,10 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },
+  "overrides": {
+    "multer": "^2.3.0",
+    "brace-expansion@^1.1.0": "^1.1.18"
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",

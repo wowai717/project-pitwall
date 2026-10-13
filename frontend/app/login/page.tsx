@@ -15,13 +15,14 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const form = new FormData(e.currentTarget as HTMLFormElement);
 
     try {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: form.get('username'), password: form.get('password') }),
       });
 
       const contentType = res.headers.get('content-type') || '';
@@ -34,11 +35,12 @@ export default function LoginPage() {
       // 🚨 핵심: 발급받은 출입증(토큰)을 브라우저 금고(localStorage)에 보관합니다!
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('username', data.username);
+      window.dispatchEvent(new Event('auth-change'));
 
       // 로그인 성공 시 커뮤니티(또는 대시보드)로 강제 이동
       router.push('/community');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '로그인에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
@@ -60,7 +62,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="mb-6 p-3 bg-red-900/20 border border-red-900/50 rounded flex items-center gap-2 text-red-500 font-mono text-xs">
+          <div role="alert" className="mb-6 p-3 bg-red-900/20 border border-red-900/50 rounded flex items-center gap-2 text-red-300 font-mono text-xs">
             <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
             {error}
           </div>
@@ -68,9 +70,9 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="flex flex-col gap-5">
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono text-neutral-500 tracking-widest">CALLSIGN</label>
+            <label htmlFor="username" className="text-sm text-neutral-300">아이디</label>
             <input 
-              type="text" required
+              id="username" name="username" autoComplete="username" type="text" required
               value={username} onChange={(e) => setUsername(e.target.value)}
               className="bg-[#111] border border-[#333] text-white p-3 rounded font-mono text-sm focus:outline-none focus:border-red-600 focus:bg-red-600/5 transition-colors"
               placeholder="Username"
@@ -78,9 +80,9 @@ export default function LoginPage() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-mono text-neutral-500 tracking-widest">ENCRYPTION KEY</label>
+            <label htmlFor="password" className="text-sm text-neutral-300">비밀번호</label>
             <input 
-              type="password" required
+              id="password" name="password" autoComplete="current-password" type="password" required
               value={password} onChange={(e) => setPassword(e.target.value)}
               className="bg-[#111] border border-[#333] text-white p-3 rounded font-mono text-sm focus:outline-none focus:border-red-600 focus:bg-red-600/5 transition-colors"
               placeholder="••••••••"
@@ -91,7 +93,7 @@ export default function LoginPage() {
             type="submit" disabled={loading}
             className="mt-4 w-full bg-red-600 text-white font-black italic tracking-widest py-3 rounded hover:bg-red-700 transition-all disabled:opacity-50 flex justify-center items-center gap-2"
           >
-            {loading ? 'AUTHENTICATING...' : 'INITIATE CONNECTION'}
+            {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
 
