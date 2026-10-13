@@ -90,10 +90,10 @@ export default async function DriverDashboardPage({
         </header>
 
         {/* 💻 대시보드 메인 레이아웃 (2단 그리드) */}
-        <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)] gap-6">
           
           {/* 좌측: 레이스 히스토리 (사이드바) */}
-          <div className="bg-[#0a0a0a] border border-[#222] rounded-lg p-4 flex flex-col h-64 xl:h-[72vh] min-w-0">
+          <div className="border-b xl:border-b-0 xl:border-r border-[#222] pb-4 xl:pr-4 flex flex-col h-40 xl:h-[72vh] min-w-0">
             <h2 className="text-sm font-medium text-neutral-400 tracking-[0.18em] mb-4 border-b border-[#222] pb-2 uppercase">
               레이스 기록 | {results.length}경기
             </h2>
@@ -122,7 +122,7 @@ export default async function DriverDashboardPage({
                       <span className={`text-[10px] font-mono tracking-wider w-7 text-center rounded py-1 ${isSelected ? 'bg-red-600 text-white' : 'bg-black/50 text-neutral-500'}`}>
                         R{res.race.round}
                       </span>
-                      <span className={`font-bold text-sm tracking-wide ${isSelected ? 'text-white' : 'text-neutral-400'}`}>
+                      <span className={`font-medium text-sm ${isSelected ? 'text-white' : 'text-neutral-400'}`}>
                         {res.race.raceName.replace('Grand Prix', 'GP')}
                       </span>
                     </div>
@@ -139,14 +139,13 @@ export default async function DriverDashboardPage({
           <div className="min-w-0 flex flex-col gap-6">
             
             {/* 상단: 선택된 경기 요약 카드 */}
-            <div className="bg-[#0a0a0a] border border-[#222] rounded-xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/5 blur-[50px] rounded-full pointer-events-none"></div>
+            <div className="border-b border-[#222] pb-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                   <p className="text-green-500 font-medium text-[11px] tracking-[0.18em] uppercase">현재 선택 경기</p>
                 </div>
-                <h2 className="text-2xl font-black italic text-white tracking-tight">
+                <h2 className="text-xl font-semibold text-white">
                   {currentResult.race.raceName}
                 </h2>
                 <p className="text-neutral-400 text-sm mt-1">라운드 {currentResult.race.round} | {currentResult.race.date}</p>

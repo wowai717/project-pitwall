@@ -17,6 +17,7 @@ page.on('pageerror', error => errors.push(error.message));
 await mkdir(output, { recursive: true });
 
 async function overflowCheck(label) {
+  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), { message: label }).toBe(true);
   const sizes = await page.evaluate(() => ({ width: innerWidth, content: document.documentElement.scrollWidth }));
   assert(sizes.content <= sizes.width + 1, `${label}: horizontal overflow ${JSON.stringify(sizes)}`);
 }
@@ -101,16 +102,38 @@ try {
   await page.goto(base + '/driver/hamilton?year=2023&round=1');
   await page.getByRole('button', { name: /데이터 불러오기/ }).click();
   await expect(page.getByRole('button', { name: '누락 데이터 다시 조회' })).toBeVisible({ timeout: 20000 });
-  assert.equal(await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('telemetry:v9:')).length), 0);
+  assert.equal(await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith('telemetry:v10:')).length), 0);
   await page.evaluate(() => { Storage.prototype.setItem = function () { throw new DOMException('Quota exceeded', 'QuotaExceededError'); }; });
   await page.getByRole('button', { name: '누락 데이터 다시 조회' }).click();
   await expect(page.getByRole('heading', { name: '랩 퍼포먼스 흐름' })).toBeVisible({ timeout: 20000 });
   await expect(page.getByRole('button', { name: '누락 데이터 다시 조회' })).toHaveCount(0);
+  await expect(page.getByRole('img', { name: /바레인 2023/ })).toBeVisible();
+  await page.getByLabel('코너 번호', { exact: true }).uncheck();
+  await expect(page.getByRole('img', { name: /바레인 2023/ }).locator('circle')).toHaveCount(0);
+  await page.getByLabel('코너 번호', { exact: true }).check();
+  await expect(page.getByRole('img', { name: /바레인 2023/ }).locator('circle')).toHaveCount(15);
+  await page.getByLabel('DRS', { exact: true }).check();
+  await expect(page.getByText('녹색 점선:', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: '트랙 지도 확대' }).click();
+  await expect(page.getByRole('dialog', { name: '확대한 트랙 지도' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '확대한 트랙 지도' })).not.toBeVisible();
+  await page.getByLabel('DRS', { exact: true }).uncheck();
+  await page.getByRole('button', { name: '섹터', exact: true }).click();
+  await expect(page.getByRole('button', { name: '섹터', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '스피드 트랩', exact: true }).click();
+  await expect(page.getByText('스피드 트랩 지점 기록.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: '랩타임', exact: true }).click();
   await overflowCheck('telemetry');
   await screenshot('telemetry-mobile');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await overflowCheck('desktop telemetry');
   await screenshot('telemetry-desktop');
+  for (const width of [320, 768, 1920]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await overflowCheck(`telemetry ${width}`);
+    await screenshot(`telemetry-${width}`);
+  }
   console.log('PASS partial telemetry retry and storage quota failure (mocked OpenF1)');
   await page.locator('a[href="/driver/hamilton?year=2023&round=2"]').click();
   await expect(page.getByRole('button', { name: /데이터 불러오기/ })).toBeVisible();
