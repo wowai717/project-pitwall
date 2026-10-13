@@ -3,14 +3,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: development
     ports:
-      - "${FRONTEND_PORT}:3000"
+      - "127.0.0.1:${FRONTEND_PORT}:3000"
     env_file:
       - ./frontend/.env.local
     environment:
       API_INTERNAL_URL: http://backend:3000
     volumes:
       - ./frontend/app:/app/app
+      - ./frontend/public:/app/public
     depends_on:
       - backend
 
@@ -18,8 +20,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: development
     ports:
-      - "${BACKEND_PORT}:3000"
+      - "127.0.0.1:${BACKEND_PORT}:3000"
     env_file:
       - ./backend/.env
     environment:
@@ -28,8 +31,10 @@ services:
       DB_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT}
     volumes:
       - ./backend/src:/app/src
+      - ./backend/test:/app/test
     depends_on:
       mysql: 
         condition: service_healthy
@@ -39,11 +44,11 @@ services:
   mysql:
     image: mysql:8.0
     restart: always
+    volumes:
+      - mysql-data:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
-    ports:
-      - "${MYSQL_HOST_PORT}:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
@@ -51,10 +56,13 @@ services:
 
   redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
     restart: always
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
+
+volumes:
+  mysql-data:
+    external: true
+    name: ${MYSQL_DATA_VOLUME:?Set MYSQL_DATA_VOLUME to an existing Docker volume}
