@@ -1,0 +1,19 @@
+services:
+  backend:
+    build:
+      target: production
+    environment:
+      NODE_ENV: production
+      TYPEORM_SYNC: 'false'
+      FRONTEND_ORIGIN: ${PUBLIC_FRONTEND_ORIGIN:?Set PUBLIC_FRONTEND_ORIGIN to the public frontend origin}
+    volumes: !reset []
+    restart: unless-stopped
+  frontend:
+    build:
+      target: production
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?Set PUBLIC_API_URL to the public API origin}
+    environment:
+      NODE_ENV: production
+    volumes: !reset []
+    restart: unless-stopped

@@ -7,6 +7,9 @@
   "license": "UNLICENSED",
   "scripts": {
     "seed": "ts-node src/seed.ts",
+    "seed:prod": "node dist/seed.js",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
+    "migration:prod": "node node_modules/typeorm/cli.js migration:run -d dist/data-source.js",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

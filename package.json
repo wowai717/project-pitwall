@@ -2,10 +2,10 @@
   "name": "project-pitwall",
   "private": true,
   "scripts": {
-    "dev": "bash ./scripts/dev.sh",
+    "dev": "docker compose up --build",
     "dev:infra": "docker compose up -d mysql redis",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "dev:backend": "npm --prefix backend run start:dev",
+    "dev:frontend": "docker compose up frontend",
+    "dev:backend": "docker compose up backend",
     "dev:down": "docker compose down"
   }
 }
