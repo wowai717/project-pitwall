@@ -29,7 +29,7 @@ export default function HomePage() {
           </h1>
 
           <p className="mt-8 text-neutral-400 max-w-2xl mx-auto text-sm md:text-base leading-relaxed">
-            실시간 F1 주행 데이터 분석부터 글로벌 팬 커뮤니티까지. <br />
+            2020~2025 F1 시즌 기록과 레이스 분석, 팬 커뮤니티. <br />
             당신의 방 안을 하이엔드 피트월(Pitwall) 데이터 센터로 만들어보세요.
           </p>
 
@@ -53,7 +53,7 @@ export default function HomePage() {
                 Join Community
               </Link>
               <span className="text-[10px] text-neutral-600 font-mono mt-2 tracking-widest">
-                *로그인 필요
+                글·댓글 작성 시 로그인 필요
               </span>
             </div>
           </div>
@@ -99,12 +99,11 @@ export default function HomePage() {
                 </svg>
               </div>
               <h3 className="text-2xl font-bold uppercase tracking-tight mb-3">
-                Live Telemetry
+                Race Telemetry
               </h3>
               <p className="text-neutral-400 text-sm leading-relaxed max-w-md">
-                FIA OpenF1 API를 통한 초정밀 데이터 스트리밍. 속도, 스로틀,
-                브레이크 압력까지 드라이버의 모든 조작을 실시간 차트로
-                렌더링합니다. 누구나 데이터를 열람하고 분석할 수 있습니다.
+                2023년 이후 레이스의 공개 OpenF1 기록. 속도, 스로틀,
+                브레이크 작동 여부와 랩타임을 확인하세요.
               </p>
             </div>
             {/* 가짜 UI 장식 */}
@@ -164,7 +163,7 @@ export default function HomePage() {
             </div>
             <p className="text-xs font-mono text-neutral-500 leading-relaxed max-w-xs">
               모터스포츠 팬들을 위해 구축된 고성능 F1 텔레메트리 대시보드 및
-              실시간 데이터 분석 플랫폼입니다.
+              과거 시즌 데이터 분석 플랫폼입니다.
             </p>
           </div>
 
@@ -180,7 +179,7 @@ export default function HomePage() {
                 Data)
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-red-600">▸</span> Next.js 15 (Frontend App
+                <span className="text-red-600">▸</span> Next.js 16 (Frontend App
                 Router)
               </li>
               <li className="flex items-center gap-2">
@@ -203,7 +202,7 @@ export default function HomePage() {
               <li>
                 {/* 👇 본인의 깃허브 주소로 변경하세요! */}
                 <a
-                  href="https://github.com/your-username"
+                  href="https://github.com/wowai717/project-pitwall"
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2 hover:text-white transition-colors"
@@ -225,8 +224,7 @@ export default function HomePage() {
               </li>
               <li className="flex items-center gap-2 text-neutral-500">
                 {/* 👇 본인 이름이나 닉네임으로 변경하세요! */}
-                <span className="text-neutral-700">@</span> Engineered by [본인
-                닉네임]
+                <span className="text-neutral-700">@</span> wowai717
               </li>
             </ul>
           </div>

@@ -15,6 +15,8 @@ import { User } from './entities/user.entity';
 import { Post } from './entities/post.entity';
 import { Comment } from './entities/comment.entity';
 import { AuthModule } from './auth/auth.module';
+import { CommunityController } from './community/comunity.controller';
+import { CommunityService } from './community/community.service';
 
 @Module({
   imports: [
@@ -58,8 +60,9 @@ import { AuthModule } from './auth/auth.module';
     
     F1Module, 
     AuthModule,
+    TypeOrmModule.forFeature([Post, Comment, User]),
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, CommunityController],
+  providers: [AppService, CommunityService],
 })
 export class AppModule {}
