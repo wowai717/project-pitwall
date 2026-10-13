@@ -76,6 +76,85 @@ test('half points survive the fallback response', async () => {
   ).toBe(12.5);
 });
 
+interface RaceSummary {
+  race: { round: number };
+  constructor?: { constructorId: string; name: string };
+  grid: number | null;
+  laps: number | null;
+}
+
+test('fallback result summaries retain source team, grid and laps without replacing unknowns with zero', async () => {
+  const service = f1();
+  const hamilton = (await service.getDriverResults(
+    2023,
+    'hamilton',
+  )) as RaceSummary[];
+  expect(hamilton.find((result) => result.race.round === 1)).toMatchObject({
+    constructor: { constructorId: 'mercedes', name: 'Mercedes' },
+    grid: 7,
+    laps: 57,
+  });
+  const sainz = (await service.getDriverResults(
+    2023,
+    'sainz',
+  )) as RaceSummary[];
+  expect(sainz.find((result) => result.race.round === 17)).toMatchObject({
+    constructor: { constructorId: 'ferrari', name: 'Ferrari' },
+    grid: null,
+    laps: null,
+  });
+});
+
+test('live result summaries keep a recorded zero and leave missing grid and laps unknown', async () => {
+  const constructor = {
+    constructorId: 'mercedes',
+    name: 'Mercedes',
+    nationality: 'German',
+  };
+  const result = {
+    Driver: {
+      driverId: 'hamilton',
+      givenName: 'Lewis',
+      familyName: 'Hamilton',
+    },
+    Constructor: constructor,
+    number: '44',
+    position: '5',
+    points: '10',
+    status: 'Finished',
+  };
+  get.mockReturnValue(
+    of({
+      data: {
+        MRData: {
+          RaceTable: {
+            Races: [
+              {
+                round: '1',
+                raceName: 'Bahrain Grand Prix',
+                date: '2023-03-05',
+                Results: [{ ...result, grid: '0', laps: '57' }],
+              },
+              {
+                round: '2',
+                raceName: 'Saudi Arabian Grand Prix',
+                date: '2023-03-19',
+                Results: [result],
+              },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  const results = (await f1().getDriverResults(
+    2023,
+    'hamilton',
+  )) as RaceSummary[];
+  expect(results[0]).toMatchObject({ constructor, grid: 0, laps: 57 });
+  expect(results[1]).toMatchObject({ constructor, grid: null, laps: null });
+});
+
 test('fallback results retain classified retirement reasons and normalize completed finishes', async () => {
   const service = f1();
   for (const [driverId, status] of [

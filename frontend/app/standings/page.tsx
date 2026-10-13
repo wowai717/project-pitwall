@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ChevronRight, Flag } from 'lucide-react';
 import { notFound } from 'next/navigation';
 
 interface StandingData {
@@ -17,105 +18,200 @@ export default async function StandingsPage({
 }: {
   searchParams: Promise<{ year?: string; type?: string }>;
 }) {
-  const API_BASE_URL = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const apiBase =
+    process.env.API_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'http://localhost:4000';
   const resolvedParams = await searchParams;
   const currentYear = resolvedParams.year || '2023';
   const currentType = resolvedParams.type || 'driver';
   const years = ['2020', '2021', '2022', '2023', '2024', '2025'];
-  if (!years.includes(currentYear) || !['driver', 'constructor'].includes(currentType)) notFound();
+  if (
+    !years.includes(currentYear) ||
+    !['driver', 'constructor'].includes(currentType)
+  )
+    notFound();
 
   let standings: StandingData[] = [];
   let failed = false;
-  
   try {
     const endpoint = currentType === 'driver' ? 'standings' : 'constructors';
-    const res = await fetch(`${API_BASE_URL}/f1/${endpoint}?year=${currentYear}`, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
-    if (!res.ok) throw new Error('Standings request failed');
-    standings = await res.json();
+    const response = await fetch(
+      `${apiBase}/f1/${endpoint}?year=${currentYear}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(12000) },
+    );
+    if (!response.ok) throw new Error('Standings request failed');
+    standings = await response.json();
   } catch (error) {
-    console.error('데이터 가져오기 실패:', error);
+    console.error('순위 조회 실패:', error);
     failed = true;
   }
 
+  const rowClass =
+    'grid grid-cols-[22px_minmax(0,1fr)_30px_52px_14px] items-center gap-2 px-3 md:grid-cols-[44px_minmax(0,1fr)_80px_110px_24px] md:gap-4 md:px-5';
+
   return (
-    // 🏎️ 배경: 피트월 모니터 느낌의 다크 그리드 패턴
-    <div className="min-h-screen bg-[#0a0a0a] bg-[radial-gradient(#2a2a2a_1px,transparent_1px)] [background-size:24px_24px] text-white p-4 md:p-12 font-sans selection:bg-red-600 selection:text-white relative">
-      <div className="max-w-5xl mx-auto relative z-10">
-        
-        {/* 🏁 헤더: 모터스포츠 특유의 기울어진(Italic) 날렵한 타이포그래피 */}
-        <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-neutral-800 pb-8 relative">
-          <div className="absolute bottom-0 left-0 w-32 h-[1px] bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
+    <div className="min-h-[calc(100vh-64px)] bg-[#0b0c0e] px-4 py-6 text-white md:px-8 md:py-8">
+      <div className="mx-auto max-w-[1440px]">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-800 pb-5">
           <div>
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter uppercase italic flex items-center">
-              <span className="text-red-600 pr-1">PIT</span>
-              <span className="text-transparent bg-clip-text bg-gradient-to-br from-white to-neutral-600">WALL</span>
-            </h1>
-            <div className="flex items-center gap-3 mt-3">
-              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-              <p className="text-neutral-400 font-mono text-sm tracking-[0.2em] uppercase">Championship Data</p>
+            <div className="mb-2 flex items-center gap-2 text-xs text-neutral-400">
+              <Flag size={14} className="text-red-400" aria-hidden="true" />
+              F1 CHAMPIONSHIP
             </div>
+            <h1 className="text-2xl font-semibold md:text-3xl">
+              {currentYear} 시즌
+            </h1>
           </div>
-          <div className="text-left md:text-right">
-            <div className="text-5xl font-black italic text-white font-mono tracking-tighter">{currentYear}</div>
-            <div className="text-neutral-500 text-xs font-mono uppercase tracking-[0.2em] mt-1">Season</div>
+          <div className="self-end text-right text-sm text-neutral-400">
+            <span className="block font-medium text-neutral-200">
+              {currentType === 'driver' ? '드라이버 순위' : '컨스트럭터 순위'}
+            </span>
+            <span className="text-xs">
+              {standings.length}
+              {currentType === 'driver' ? '명' : '팀'}
+            </span>
           </div>
         </header>
 
-        {/* 🎛️ 컨트롤 패널: 투명한 글래스 대시보드 느낌 */}
-        <div className="flex flex-col lg:flex-row gap-4 justify-between items-center border-b border-neutral-800 pb-5 mb-6">
-          <div className="flex bg-neutral-900/80 p-1 rounded-lg w-full md:w-auto border border-neutral-800">
-            <Link href={`/standings?year=${currentYear}&type=driver`} className={`flex-1 md:w-32 text-center py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all duration-300 ${currentType === 'driver' ? 'bg-white text-black shadow-sm' : 'text-neutral-500 hover:text-white'}`}>Drivers</Link>
-            <Link href={`/standings?year=${currentYear}&type=constructor`} className={`flex-1 md:w-32 text-center py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all duration-300 ${currentType === 'constructor' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]' : 'text-neutral-500 hover:text-white'}`}>Teams</Link>
-          </div>
-          
-          <div className="flex gap-1 overflow-x-auto w-full md:w-auto no-scrollbar">
+        <div className="flex flex-col gap-4 border-b border-neutral-800 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <nav
+            aria-label="순위 종류"
+            className="flex w-fit border-b border-neutral-700"
+          >
+            <Link
+              href={`/standings?year=${currentYear}&type=driver`}
+              aria-current={currentType === 'driver' ? 'page' : undefined}
+              className={`flex min-h-11 items-center border-b-2 px-5 text-sm font-medium ${currentType === 'driver' ? 'border-red-400 text-white' : 'border-transparent text-neutral-400 hover:text-white'}`}
+            >
+              드라이버
+            </Link>
+            <Link
+              href={`/standings?year=${currentYear}&type=constructor`}
+              aria-current={currentType === 'constructor' ? 'page' : undefined}
+              className={`flex min-h-11 items-center border-b-2 px-5 text-sm font-medium ${currentType === 'constructor' ? 'border-red-400 text-white' : 'border-transparent text-neutral-400 hover:text-white'}`}
+            >
+              팀
+            </Link>
+          </nav>
+          <nav aria-label="시즌 선택" className="grid grid-cols-6 gap-1">
             {years.map((year) => (
-              <Link key={year} href={`/standings?year=${year}&type=${currentType}`} className={`px-5 py-2 rounded-md text-sm font-mono transition-all duration-300 flex-shrink-0 ${currentYear === year ? 'bg-neutral-800/80 text-white border border-neutral-600' : 'text-neutral-500 hover:bg-neutral-800/50 hover:text-white border border-transparent'}`}>{year}</Link>
+              <Link
+                key={year}
+                href={`/standings?year=${year}&type=${currentType}`}
+                aria-current={currentYear === year ? 'page' : undefined}
+                className={`flex min-h-11 min-w-0 items-center justify-center rounded px-2 text-sm tabular-nums md:px-4 ${currentYear === year ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:bg-neutral-900 hover:text-white'}`}
+              >
+                {year}
+              </Link>
             ))}
-          </div>
+          </nav>
         </div>
 
-        {/* 🏎️ 랭킹 리스트: 주행 궤적(레이싱 라인)을 모티브로 한 호버 이펙트 */}
-        <div className="grid gap-3">
-          {standings.length === 0 && <div role={failed ? 'alert' : 'status'} className="py-10 text-center text-neutral-300"><p>{failed ? '순위를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' : '이 시즌의 순위 기록이 없습니다.'}</p>{failed && <Link className="mt-4 inline-block text-cyan-300 underline" href={`/standings?year=${currentYear}&type=${currentType}`}>다시 시도</Link>}</div>}
-          {standings.map((item, index) => {
-            // 👇 [핵심 변경 포인트!] 모달 대신 새로운 상세 페이지 라우팅으로 연결
-            const linkHref = currentType === 'driver' 
-              ? `/driver/${item.id}?year=${currentYear}` 
-              : '#';
-            
-            return (
-              <div key={index} className="group flex items-center justify-between gap-3 bg-neutral-900/60 p-3 md:p-5 rounded-lg border border-neutral-800/50 relative hover:border-neutral-600">
-                {currentType === 'driver' && <Link href={linkHref} aria-label={`${item.firstName} ${item.lastName} 경기 기록`} className="absolute inset-0 z-20 rounded-lg" />}
-                {/* 왼쪽 레이싱 라인 (RPM 게이지 오르듯 차오르는 효과) */}
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom"></div>
-                
-                <div className="flex min-w-0 items-center gap-3 md:gap-6 z-10">
-                  <span className="text-2xl font-black w-8 shrink-0 text-left text-neutral-400 italic font-mono">{index + 1}</span>
-                  <div className="min-w-0">
-                    {currentType === 'driver' ? (
-                      <>
-                        <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white group-hover:translate-x-2 transition-transform duration-300 italic">
-                          {item.firstName} <span className="text-neutral-400 group-hover:text-white transition-colors duration-300">{item.lastName?.toUpperCase()}</span>
-                        </h2>
-                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                          <span className="text-[10px] font-mono bg-neutral-800 border border-neutral-700 px-2 py-0.5 rounded-sm text-white tracking-widest">{item.code}</span>
-                          <span className="text-xs text-neutral-400 font-medium tracking-wide uppercase">{item.nationality}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white group-hover:translate-x-2 transition-transform duration-300 italic">{item.name}</h2>
-                    )}
-                  </div>
-                </div>
-                <div className="shrink-0 text-right z-10">
-                  <div className="text-3xl md:text-4xl font-black text-white tracking-tighter font-mono group-hover:text-red-500 transition-colors duration-300">{item.totalPoints || 0}</div>
-                  <div className="text-[10px] text-neutral-500 font-mono tracking-[0.2em] mt-0.5">PTS</div>
-                </div>
-              </div>
-            )
-          })}
+        <div
+          className={`${rowClass} min-h-11 border-b border-neutral-800 text-xs text-neutral-500`}
+          aria-hidden="true"
+        >
+          <span>#</span>
+          <span>{currentType === 'driver' ? '선수' : '팀'}</span>
+          <span className="text-right">승수</span>
+          <span className="text-right">포인트</span>
+          <span />
         </div>
+        {standings.length === 0 && (
+          <div
+            role={failed ? 'alert' : 'status'}
+            className="py-12 text-center text-sm text-neutral-300"
+          >
+            <p>
+              {failed
+                ? '순위를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+                : '이 시즌의 순위 기록이 없습니다.'}
+            </p>
+            {failed && (
+              <Link
+                className="mt-4 inline-flex min-h-11 items-center text-cyan-300 underline"
+                href={`/standings?year=${currentYear}&type=${currentType}`}
+              >
+                다시 시도
+              </Link>
+            )}
+          </div>
+        )}
+        <ol className="divide-y divide-neutral-800/80">
+          {standings.map((item, index) => {
+            const name =
+              currentType === 'driver'
+                ? `${item.firstName} ${item.lastName}`
+                : item.name;
+            const content = (
+              <>
+                <span
+                  className={`text-sm tabular-nums ${index < 3 ? 'text-white' : 'text-neutral-500'}`}
+                >
+                  {index + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block break-words text-sm font-semibold text-neutral-100 md:text-base">
+                    {name}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">
+                    {item.code && (
+                      <span className="mr-2 font-mono text-neutral-400">
+                        {item.code}
+                      </span>
+                    )}
+                    {item.nationality}
+                  </span>
+                </span>
+                <span className="text-right text-sm tabular-nums text-neutral-400">
+                  {item.wins ?? '-'}
+                </span>
+                <span className="text-right text-base font-semibold tabular-nums text-white">
+                  {item.totalPoints ?? '-'}
+                </span>
+                <span>
+                  {currentType === 'driver' && (
+                    <ChevronRight
+                      size={16}
+                      className="text-neutral-600 group-hover:text-red-400"
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
+              </>
+            );
+            return (
+              <li key={item.id || item.name || index}>
+                {currentType === 'driver' ? (
+                  <Link
+                    href={`/driver/${item.id}?year=${currentYear}`}
+                    aria-label={`${name} 경기 기록`}
+                    className={`${rowClass} group min-h-[68px] py-2 transition-colors hover:bg-neutral-900 focus-visible:bg-neutral-900 md:min-h-[64px]`}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div
+                    className={`${rowClass} min-h-[68px] py-2 md:min-h-[64px]`}
+                  >
+                    {content}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800 py-5 text-xs text-neutral-500">
+          <span>시즌 순위 · Jolpica / F1DB</span>
+          <Link
+            href="/community"
+            className="flex min-h-11 items-center hover:text-neutral-200"
+          >
+            커뮤니티
+            <ChevronRight size={14} aria-hidden="true" />
+          </Link>
+        </footer>
       </div>
     </div>
   );

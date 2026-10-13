@@ -102,3 +102,5 @@ jobs:
       run: |
         npm --prefix frontend run lint
         node scripts/validate-f1-coverage.mjs
+        node scripts/check-track-geometry.mjs
+        node scripts/check-analysis-data.mjs
