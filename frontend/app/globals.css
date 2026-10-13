@@ -25,13 +25,20 @@ body {
     "Segoe UI",
     sans-serif;
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   text-rendering: optimizeLegibility;
 }
 
 html {
   background: var(--background);
   color-scheme: dark;
+}
+
+:focus-visible { outline: 2px solid #22d3ee; outline-offset: 4px; }
+input, textarea, button, a { -webkit-tap-highlight-color: transparent; }
+h1, h2, h3, p { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
 .no-scrollbar::-webkit-scrollbar {
