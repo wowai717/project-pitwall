@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main", "develop"]
   pull_request:
-    branches: ["main", "develop"]
+    branches: ["**"]
 
 permissions:
   contents: read
@@ -23,12 +23,41 @@ jobs:
     timeout-minutes: 10
     env:
       CI: true
+      NODE_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: ci-test-password
+      DB_NAME: pitwall_ci
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      FRONTEND_ORIGIN: http://localhost:3000
+      JWT_SECRET: ci-only-secret-not-for-production-0123456789
+      TYPEORM_SYNC: 'false'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-test-password
+          MYSQL_DATABASE: pitwall_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -pci-test-password"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
     - uses: actions/checkout@v4
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: npm
         cache-dependency-path: backend/package-lock.json
     - name: Install Backend Dependencies
@@ -39,6 +68,13 @@ jobs:
       run: |
         cd backend
         npm run build
+    - name: Lint and Test Backend
+      working-directory: backend
+      run: |
+        npx eslint '{src,apps,libs,test}/**/*.ts'
+        npm test -- --runInBand
+        npm run migration:run
+        npm run test:e2e -- --runInBand
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -51,7 +87,7 @@ jobs:
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: npm
         cache-dependency-path: frontend/package-lock.json
     - name: Install Frontend Dependencies
@@ -62,3 +98,7 @@ jobs:
       run: |
         cd frontend
         npm run build
+    - name: Lint Frontend and Check Track Coverage
+      run: |
+        npm --prefix frontend run lint
+        node scripts/validate-f1-coverage.mjs
