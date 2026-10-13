@@ -7,7 +7,7 @@ import { AppModule } from './../src/app.module';
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -15,6 +15,24 @@ describe('AppController (e2e)', () => {
     app = moduleFixture.createNestApplication();
     await app.init();
   });
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  it('does not expose database seed routes', () =>
+    request(app.getHttpServer()).get('/f1/seed/all').expect(404));
+  it('rejects unsupported seasons', () =>
+    request(app.getHttpServer())
+      .get('/f1/standings?year=2023oops')
+      .expect(400));
+  it('serves the community list', () =>
+    request(app.getHttpServer()).get('/community/posts').expect(200));
+  it('requires authentication to write posts', () =>
+    request(app.getHttpServer())
+      .post('/community/posts')
+      .send({ title: 'test', content: 'test' })
+      .expect(401));
 
   it('/ (GET)', () => {
     return request(app.getHttpServer())

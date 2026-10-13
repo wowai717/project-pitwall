@@ -8,13 +8,12 @@ import { Constructor } from '../entities/constructor.entity';
 import { Race } from '../entities/race.entity';
 import { Result } from '../entities/result.entity';
 
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([Driver, Constructor, Race, Result]),
-    HttpModule,
+    HttpModule.register({ timeout: 8000 }),
   ],
   providers: [F1Service],
-  controllers: [F1Controller]
+  controllers: [F1Controller],
 })
 export class F1Module {}
