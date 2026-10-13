@@ -5,6 +5,7 @@ services:
     environment:
       NODE_ENV: production
       TYPEORM_SYNC: 'false'
+      FRONTEND_ORIGIN: ${PUBLIC_FRONTEND_ORIGIN:?Set PUBLIC_FRONTEND_ORIGIN to the public frontend origin}
     volumes: !reset []
     restart: unless-stopped
   frontend:

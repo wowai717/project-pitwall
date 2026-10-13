@@ -43,12 +43,16 @@ docker compose start backend frontend
 
 기존 정수형 점수 컬럼은 마이그레이션에서 소수점 2자리로 확장됩니다. 이미 정수로 저장되어 손실된
 소수점은 스키마 변경만으로 복원되지 않습니다. 데이터 수집은 공개 HTTP API가 아닌
-`docker compose exec backend npm run seed`로 실행합니다.
+개발 환경에서는 `docker compose exec backend npm run seed`로 실행합니다.
+운영 이미지는 `docker compose -f docker-compose.yml -f compose.production.yml exec backend npm run seed:prod`를 사용합니다.
+두 명령 모두 기존 결과는 건너뛰므로 이미 손실된 소수점을 복구하지 않습니다.
 
 ## 운영 이미지
 
-`.env`의 `PUBLIC_API_URL`에 브라우저에서 접근 가능한 API 주소를 지정합니다.
-운영에서는 HTTPS 리버스 프록시를 앞에 두고 `FRONTEND_ORIGIN`을 실제 화면 주소에 맞춥니다.
+루트 `.env`의 `PUBLIC_API_URL`에 브라우저에서 접근 가능한 API 주소를,
+`PUBLIC_FRONTEND_ORIGIN`에 실제 화면 주소를 지정합니다. 예: `https://pitwall.example.com`.
+여러 화면 주소를 허용할 때는 쉼표로 구분합니다. 운영 Compose는 이 값을 백엔드의
+`FRONTEND_ORIGIN`에 전달합니다. 운영에서는 HTTPS 리버스 프록시를 앞에 둡니다.
 Compose 포트는 기본적으로 로컬에만 노출됩니다.
 
 ```bash
