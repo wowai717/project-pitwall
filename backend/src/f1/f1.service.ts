@@ -582,7 +582,7 @@ export class F1Service {
             (item) => item.id === result.constructorId,
           );
           const finished =
-            result.positionText !== null && /^\d+$/.test(result.positionText);
+            result.status !== null && /^\d+$/.test(result.status);
 
           return {
             race: {
